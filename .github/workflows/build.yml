@@ -40,3 +40,7 @@ jobs:
       
     - name: Run clang-format
       run: ONLY_CHECK=1 ./run-clang-format.sh
+
+    - name: ASAN BUILD
+      run: |
+        BUILD_TYPE=RelWithDebInfo ENABLE_ASAN=ON ./build.sh
