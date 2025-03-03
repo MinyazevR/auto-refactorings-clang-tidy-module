@@ -39,4 +39,4 @@ jobs:
         sudo apt-get install -y clang-format --no-install-recommends
       
     - name: Run clang-format
-      run: ./run-clang-format.sh
+      run: ONLY_CHECK=1 ./run-clang-format.sh
