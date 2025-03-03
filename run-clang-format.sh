@@ -17,4 +17,4 @@ done
 
 IGNORE_CMD=${IGNORE_CMD% -o}
 
-find . \( $IGNORE_CMD \) -prune -o -name '*.cpp' -o -name '*.h' -print0 | xargs -0 clang-format${1+-$1} --style=file -i
+find . \( $IGNORE_CMD \) -prune -o -name '*.cpp' -print0 -o -name '*.h' -print0 | xargs -0 clang-format${1+-$1} --style=file -i
