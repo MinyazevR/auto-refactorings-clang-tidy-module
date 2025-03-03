@@ -30,7 +30,7 @@ jobs:
       build: true
       config: RelWithDebInfo
       enable_asan: ON
-      llvm_version: 19.7.1
+      llvm_version: 19.1.7
       
   build-linux-rel-debinfo-asan-master-llvm:
     needs: lint
@@ -40,11 +40,11 @@ jobs:
       build: true
       config: RelWithDebInfo
       enable_asan: ON
-      
+
   build-linux-release:
     needs: lint
     uses: ./.github/workflows/build.yml
     with:
       os: ubuntu-latest
       build: true
-      llvm_version: 19.7.1
+      llvm_version: 19.1.7

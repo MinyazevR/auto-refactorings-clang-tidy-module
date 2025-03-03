@@ -70,6 +70,18 @@ jobs:
         key: ${{ runner.os }}-${{ inputs.config }}-${{ inputs.llvm_version }}
       if: ${{ inputs.build }}
 
+    - name: Free Disk Space (Ubuntu)
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: false
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        docker-images: true
+        swap-storage: true
+      if: ${{ inputs.build }}
+
     - name: Build
       run: ./build.sh
       env:
