@@ -22,7 +22,7 @@ jobs:
       build: false
       
   build-linux-rel-debinfo-asan-release-llvm:
-    need: lint
+    needs: lint
     uses: ./.github/workflows/build.yml
     with:
       os: ubuntu-latest
@@ -33,7 +33,7 @@ jobs:
       llvm_version: 19.7.1
       
   build-linux-rel-debinfo-asan-master-llvm:
-    need: lint
+    needs: lint
     uses: ./.github/workflows/build.yml
     with:
       os: ubuntu-latest
@@ -42,7 +42,7 @@ jobs:
       enable_asan: ON
       
   build-linux-release:
-    need: lint
+    needs: lint
     uses: ./.github/workflows/build.yml
     with:
       os: ubuntu-latest
