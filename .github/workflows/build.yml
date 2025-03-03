@@ -34,19 +34,19 @@ on:
         type: string
         default: OFF
         
-  jobs:
-    builds:
-      defaults:
-        run:
-          shell: ${{ inputs.shell }}
+jobs:
+  build:
+    defaults:
+      run:
+        shell: ${{ inputs.shell }}
 
     runs-on: ${{ inputs.os }}
     steps:
     
     - name: Configure git
       run: |
-          git config --global core.symlinks true
-          git config --global core.autocrlf input
+        git config --global core.symlinks true
+        git config --global core.autocrlf input
           
     - name: Checkout repo
       uses: actions/checkout@v4
@@ -67,7 +67,7 @@ on:
     - name: Ccache
       uses: hendrikmuhs/ccache-action@v1.2.17
       with:
-         key: ${{ runner.os }}
+        key: ${{ runner.os }}-${{ inputs.config }}-${{ inputs.llvm_version }}
       if: ${{ inputs.build }}
 
     - name: Build
