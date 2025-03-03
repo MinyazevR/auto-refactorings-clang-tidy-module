@@ -23,26 +23,30 @@ public:
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
   void runInternal(IfStmt *ifStmt,
-                const ast_matchers::MatchFinder::MatchResult &Result, CFG &cfg);
+                   const ast_matchers::MatchFinder::MatchResult &Result,
+                   CFG &cfg);
 
 private:
-    ulong mIndent = 2;
-    bool mNeedShift {};
-    Rewriter Rewrite;
-    std::list<clang::FixItHint> mFixList;
-    bool reversCondition(const IfStmt* ifStmt, const SourceManager *manager);
+  ulong mIndent = 2;
+  bool mNeedShift{};
+  Rewriter Rewrite;
+  std::list<clang::FixItHint> mFixList;
+  bool reversCondition(const IfStmt *ifStmt, const SourceManager *manager);
 
-    void appendStmt(const CompoundStmt* stmt, const Stmt* stmtToAdd,
-                  const clang::SourceManager *manager, const clang::ASTContext *context);
+  void appendStmt(const CompoundStmt *stmt, const Stmt *stmtToAdd,
+                  const clang::SourceManager *manager,
+                  const clang::ASTContext *context);
 
-    void indentBlock(const CompoundStmt* stmt, const std::string &string, unsigned long indent);
+  void indentBlock(const CompoundStmt *stmt, const std::string &string,
+                   unsigned long indent);
 
-    void reverseStmt(const IfStmt* ifStmt, const clang::ASTContext &context,
-                     const clang::SourceManager* manager,
-                     bool needShift);
+  void reverseStmt(const IfStmt *ifStmt, const clang::ASTContext &context,
+                   const clang::SourceManager *manager, bool needShift);
 
-    bool addIterruptionBlockToStmts(const Stmt* stmt, const CFG &cfg, const clang::SourceManager *manager,
-                                    const CFGStmtMap *stmtToBlockMap, const clang::ASTContext *context);
+  bool addIterruptionBlockToStmts(const Stmt *stmt, const CFG &cfg,
+                                  const clang::SourceManager *manager,
+                                  const CFGStmtMap *stmtToBlockMap,
+                                  const clang::ASTContext *context);
 };
 }; // namespace clang::tidy::autorefactorings
 
