@@ -1,0 +1,50 @@
+name: Common build
+
+on:
+  push:
+     branches-ignore:
+      - 'dependabot**'
+  pull_request:
+    branches-ignore:
+      - 'dependabot**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    uses: ./.github/workflows/build.yml
+    with:
+      os: ubuntu-latest
+      lint: true
+      build: false
+      
+  build-linux-rel-debinfo-asan-release-llvm:
+    need: lint
+    uses: ./.github/workflows/build.yml
+    with:
+      os: ubuntu-latest
+      lint: false
+      build: true
+      config: RelWithDebInfo
+      enable_asan: ON
+      llvm_version: 19.7.1
+      
+  build-linux-rel-debinfo-asan-master-llvm:
+    need: lint
+    uses: ./.github/workflows/build.yml
+    with:
+      os: ubuntu-latest
+      build: true
+      config: RelWithDebInfo
+      enable_asan: ON
+      
+  build-linux-release:
+    need: lint
+    uses: ./.github/workflows/build.yml
+    with:
+      os: ubuntu-latest
+      build: true
+      llvm_version: 19.7.1

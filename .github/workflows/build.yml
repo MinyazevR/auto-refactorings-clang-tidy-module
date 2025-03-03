@@ -1,25 +1,46 @@
-name: build
+name: Build
 
 on:
-  push:
-     branches-ignore:
-      - 'dependabot**'
-  pull_request:
-    branches-ignore:
-      - 'dependabot**'
-  workflow_dispatch:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
-jobs:
-  lint:
-    defaults:
-      run:
-        shell: bash
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+      lint:
+        required: false
+        type: boolean
+        default: false
+      build:
+        required: true
+        type: boolean
+      config:
+        required: false
+        type: string
+        default: Release
+      tests:
+        required: false
+        type: string
+        default: "./test/run_tests.sh"
+      shell:
+        required: false
+        type: string
+        default: bash
+      llvm_version:
+        required: false
+        type: string
+        default: master
+      enable_asan:
+        required: false
+        type: string
+        default: OFF
         
-    runs-on: ubuntu-latest
+  jobs:
+    builds:
+      defaults:
+        run:
+          shell: ${{ inputs.shell }}
+
+    runs-on: ${{ inputs.os }}
     steps:
     
     - name: Configure git
@@ -37,15 +58,22 @@ jobs:
       run: | 
         sudo apt-get update -y
         sudo apt-get install -y clang-format --no-install-recommends
+      if: ${{ inputs.lint }}
       
     - name: Run clang-format
       run: ONLY_CHECK=1 ./run-clang-format.sh
+      if: ${{ inputs.lint }}
 
     - name: Ccache
       uses: hendrikmuhs/ccache-action@v1.2.17
       with:
          key: ${{ runner.os }}
+      if: ${{ inputs.build }}
 
-    - name: ASAN BUILD
-      run: |
-        BUILD_TYPE=RelWithDebInfo ENABLE_ASAN=ON LLVM_VERSION="19.1.7" ./build.sh
+    - name: Build
+      run: ./build.sh
+      env:
+        BUILD_TYPE: ${{ inputs.config }}
+        ENABLE_ASAN: ${{ inputs.enable_asan }}
+        LLVM_VERSION: ${{ inputs.llvm_version }}
+      if: ${{ inputs.build }}
