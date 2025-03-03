@@ -13,17 +13,17 @@ else
   ROOT_DIRECTORY="llvm-project-llvmorg-$LLVM_VERSION"
 fi
 
-pushd "$ROOT_DIRECTORY"
-CLANG_TIDY_MODULES_RELATIVE_PATH="./clang-tools-extra/clang-tidy/"
+CLANG_TIDY_MODULES_RELATIVE_PATH="$ROOT_DIRECTORY/clang-tools-extra/clang-tidy/"
 CLANG_TIDY_MODULE_NAME="${CLANG_TIDY_MODULE_NAME:-autorefactorings}"
 CLANG_TIDY_MODULE_PATH="$CLANG_TIDY_MODULES_RELATIVE_PATH/$CLANG_TIDY_MODULE_NAME"
 
 mkdir -p "$CLANG_TIDY_MODULE_PATH"
 cp -r ./src/* "$CLANG_TIDY_MODULE_PATH"
 
-patch -p1 < llvm-project.patch
+pushd "$ROOT_DIRECTORY"
+patch -p1 < ../llvm-project.patch
 
 cmake -S llvm -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE="${BUILD_TYPE:-Release}" \
-    -DENABLE_ASAN=ON -DLLVM_CCACHE_BUILD="${ENABLE_ASAN:-OFF}" -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra"
+    -DENABLE_ASAN=${ENABLE_ASAN:-OFF} -DLLVM_CCACHE_BUILD=ON -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra"
 
 cmake --build build/ -j$(nproc) --target clang-tidy --config "${BUILD_TYPE:-Release}"

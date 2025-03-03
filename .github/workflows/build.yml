@@ -41,6 +41,11 @@ jobs:
     - name: Run clang-format
       run: ONLY_CHECK=1 ./run-clang-format.sh
 
+    - name: Install dependencies
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y ccache --no-install-recommends
+ 
     - name: ASAN BUILD
       run: |
-        BUILD_TYPE=RelWithDebInfo ENABLE_ASAN=ON ./build.sh
+        BUILD_TYPE=RelWithDebInfo ENABLE_ASAN=ON LLVM_VERSION="19.1.7" ./build.sh
