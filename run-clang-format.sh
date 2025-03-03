@@ -1,5 +1,5 @@
 #!/bin/bash
-set -xeuo pipefail
+set -xeo pipefail
 
 which -a clang-format-15 > /dev/null \
 	||  (echo -e "15.0.0\n$(clang-format${1+-$1} --version | grep -Eo '([0-9]+\.[0-9]+\.[0-9]+)')" | sort -CV ) \
@@ -17,4 +17,9 @@ done
 
 IGNORE_CMD=${IGNORE_CMD% -o}
 
-find . \( $IGNORE_CMD \) -prune -o -name '*.cpp' -o -name '*.h' -print0 | xargs -0 clang-format${1+-$1} --style=file -i
+if [ -z "$ONLY_CHECK" ]
+then
+    find . \( $IGNORE_CMD \) -prune -o -name '*.cpp' -print0 -o -name '*.h' -print0 | xargs -0 clang-format${1+-$1} --style=file -i
+else
+    find . \( $IGNORE_CMD \) -prune -o -name '*.cpp' -print0 -o -name '*.h' -print0 | xargs -0 clang-format${1+-$1} --style=file --Werror --dry-run
+fi

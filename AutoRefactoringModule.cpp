@@ -1,9 +1,8 @@
 #include "../ClangTidy.h"
 #include "../ClangTidyModule.h"
 #include "../ClangTidyModuleRegistry.h"
-#include "IfElseReturnChecker.h"
 #include "CommaInIfChecker.h"
-
+#include "IfElseReturnChecker.h"
 
 namespace clang::tidy {
 namespace autorefactorings {
@@ -17,7 +16,8 @@ public:
   }
 };
 
-// Register the AutoRefactoringModule using this statically initialized variable.
+// Register the AutoRefactoringModule using this statically initialized
+// variable.
 static ClangTidyModuleRegistry::Add<AutoRefactoringModule>
     X("auto-refactoring-module", "Adds checks for the AutoRefactoringModule.");
 
