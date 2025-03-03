@@ -1,0 +1,4 @@
+Checks: 'if-else-refactor'
+CheckOptions: 
+  if-else-refactor.Indent: 2
+  if-else-refactor.NeedShift: false
