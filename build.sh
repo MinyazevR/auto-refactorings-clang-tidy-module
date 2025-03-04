@@ -24,10 +24,12 @@ pushd "$ROOT_DIRECTORY"
 patch -p1 < ../llvm-project.patch
 
 cmake -S llvm -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE="${BUILD_TYPE:-Release}" \
-    -DENABLE_ASAN=${ENABLE_ASAN:-OFF} -DLLVM_CCACHE_BUILD=ON -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra"
+    -DENABLE_ASAN=${ENABLE_ASAN:-OFF} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+    -DLLVM_CCACHE_BUILD=ON -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra"
 
 cmake --build build/ -j$(nproc) --target clang-tidy --config "${BUILD_TYPE:-Release}"
 
 popd
 
-./tests/run_tests.sh "$ROOT_DIRECTORY/build/bin/clang-tidy"
+echo "CLANG_TIDY_BIN=$ROOT_DIRECTORY/build/bin/clang-tidy" >> $GITHUB_ENV
+echo "COMPILE_COMMANDS_PATH=$ROOT_DIRECTORY/build" >> $GITHUB_ENV

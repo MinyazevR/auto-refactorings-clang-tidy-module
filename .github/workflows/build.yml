@@ -53,16 +53,23 @@ jobs:
       with:
         submodules: recursive
         fetch-depth: 0
-        
-    - name: Install dependencies
-      run: | 
-        sudo apt-get update -y
-        sudo apt-get install -y clang-format --no-install-recommends
+
+    - name: Lint
+      uses: cpp-linter/cpp-linter-action@v2.13.4
+      id: linter
+      with:
+        style: 'file'
+        tidy-checks: ''
+        version: 15
+        database: ${{ env.COMPILE_COMMANDS_PATH }}
+        verbosity: 'info'
+        ignore-tidy: 'tests'
+        ignore-format: 'tests'
       if: ${{ inputs.lint }}
-      
-    - name: Run clang-format
-      run: ONLY_CHECK=1 ./run-clang-format.sh
-      if: ${{ inputs.lint }}
+
+    - name: Clang-tidy exit
+      if: ${{ steps.linter.outputs.checks-failed > 0 }}
+      run: exit 1
 
     - name: Ccache
       uses: hendrikmuhs/ccache-action@v1.2.17
@@ -88,4 +95,8 @@ jobs:
         BUILD_TYPE: ${{ inputs.config }}
         ENABLE_ASAN: ${{ inputs.enable_asan }}
         LLVM_VERSION: ${{ inputs.llvm_version }}
+      if: ${{ inputs.build }}
+
+    - name: Run tests
+      run: ./tests/run_tests.sh "$CLANG_TIDY_BIN"
       if: ${{ inputs.build }}
