@@ -4,12 +4,10 @@
 #include "../ClangTidyCheck.h"
 #include "clang/Rewrite/Core/Rewriter.h"
 
-class ASTContext;
-class CFGStmtMap;
-class IfStmt;
+namespace clang {
 class CFG;
-
-using namespace clang;
+class CFGStmtMap;
+} // namespace clang
 
 namespace clang::tidy::autorefactorings {
 
@@ -24,28 +22,31 @@ public:
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
   void runInternal(IfStmt *ifStmt,
                    const ast_matchers::MatchFinder::MatchResult &Result,
-                   CFG &cfg);
+                   clang::CFG &cfg);
 
 private:
   ulong mIndent = 2;
   bool mNeedShift{};
-  Rewriter Rewrite;
+  std::unique_ptr<Rewriter> mRewrite;
   std::list<clang::FixItHint> mFixList;
-  bool reversCondition(const IfStmt *ifStmt, const SourceManager *manager);
+  bool reversCondition(const clang::IfStmt *ifStmt,
+                       const SourceManager *manager);
 
-  void appendStmt(const CompoundStmt *stmt, const Stmt *stmtToAdd,
+  void appendStmt(const clang::CompoundStmt *stmt, const clang::Stmt *stmtToAdd,
                   const clang::SourceManager *manager,
                   const clang::ASTContext *context);
 
   void indentBlock(const CompoundStmt *stmt, const std::string &string,
                    unsigned long indent);
 
-  void reverseStmt(const IfStmt *ifStmt, const clang::ASTContext &context,
+  void reverseStmt(const clang::IfStmt *ifStmt,
+                   const clang::ASTContext &context,
                    const clang::SourceManager *manager, bool needShift);
 
-  bool addIterruptionBlockToStmts(const Stmt *stmt, const CFG &cfg,
+  bool addIterruptionBlockToStmts(const clang::Stmt *stmt,
+                                  const clang::CFG &cfg,
                                   const clang::SourceManager *manager,
-                                  const CFGStmtMap *stmtToBlockMap,
+                                  const clang::CFGStmtMap *stmtToBlockMap,
                                   const clang::ASTContext *context);
 };
 }; // namespace clang::tidy::autorefactorings

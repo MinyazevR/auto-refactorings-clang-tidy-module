@@ -1,12 +1,16 @@
+option(ENABLE_ASAN "Enable ASAN" OFF)
+
 set(LLVM_LINK_COMPONENTS
   FrontendOpenMP
   Support
   )
 
-add_compile_options(-fsanitize=address)
-add_link_options(-fsanitize=address)
+if(ENABLE_ASAN)
+    add_compile_options(-fsanitize=address -fsanitize=undefined)
+    add_link_options(-fsanitize=address -fsanitize=undefined)
+endif()
 
-add_clang_library(AutoRefactoringModule STATIC
+add_clang_library(clangTidyAutoRefactoringModule STATIC
   AutoRefactoringModule.cpp
   IfElseReturnChecker.cpp
   CommaInIfChecker.cpp
@@ -19,7 +23,15 @@ add_clang_library(AutoRefactoringModule STATIC
   ClangDriverOptions
   )
 
-clang_target_link_libraries(AutoRefactoringModule
+if(ENABLE_ASAN)
+  clang_target_link_libraries(clangTidyAutoRefactoringModule
+    PRIVATE
+    asan
+    ubsan
+  )
+endif()
+
+clang_target_link_libraries(clangTidyAutoRefactoringModule
   PRIVATE
   clangAnalysis
   clangAST
@@ -36,6 +48,4 @@ clang_target_link_libraries(AutoRefactoringModule
   clangSupport
   clangAPINotes
   clangRewrite
-  asan
 )
-

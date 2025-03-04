@@ -1,0 +1,36 @@
+name: Common build
+
+on:
+  push:
+     branches-ignore:
+      - 'dependabot**'
+  pull_request:
+    branches-ignore:
+      - 'dependabot**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  build-linux-asan-release-llvm:
+    uses: ./.github/workflows/build.yml
+    with:
+      os: ubuntu-latest
+      lint: true
+      enable_asan: ON
+      llvm_version: 19.1.7
+      
+  build-linux-asan-master-llvm:
+    uses: ./.github/workflows/build.yml
+    with:
+      os: ubuntu-latest
+      enable_asan: ON
+
+  build-linux-release:
+    uses: ./.github/workflows/build.yml
+    with:
+      os: ubuntu-latest
+      llvm_version: 19.1.7

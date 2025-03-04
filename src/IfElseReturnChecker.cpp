@@ -5,8 +5,10 @@
 #include "clang/Analysis/CFG.h"
 #include "clang/Analysis/CFGStmtMap.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Rewrite/Core/Rewriter.h"
 #include <sstream>
 
+using namespace clang;
 using namespace clang::ast_matchers;
 using namespace clang::tidy::autorefactorings;
 
@@ -91,7 +93,7 @@ static bool isBlockInCurrentIfStmt(const clang::CFGBlock *block,
 /// Checking that the block does not include any meaningful logic other than
 /// ReturnStmt
 static bool isOnlyReturnBlock(const clang::CFGBlock *block,
-                              const SourceManager *manager) {
+                              const clang::SourceManager *manager) {
   auto returnBlock = block->back();
 
   if (auto returnBlockCFGStmt = returnBlock.getAs<CFGStmt>()) {
@@ -165,7 +167,8 @@ static int getNodeWeight(const Stmt *stmt, clang::SourceManager *manager) {
 IfElseReturnChecker::IfElseReturnChecker(StringRef Name,
                                          ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context), mIndent(Options.get("Indent", 4)),
-      mNeedShift(Options.get("NeedShift", false)) {}
+      mNeedShift(Options.get("NeedShift", false)),
+      mRewrite(std::make_unique<Rewriter>()) {}
 
 void IfElseReturnChecker::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
@@ -231,8 +234,8 @@ void IfElseReturnChecker::runInternal(
                       .getLocWithOffset(getTokenLenght(elseLBracLoc, *context));
       auto right = manager->getExpansionLoc(elseRBracLoc).getLocWithOffset(-1);
 
-      auto elseText =
-          Rewrite.getRewrittenText(CharSourceRange::getTokenRange(left, right));
+      auto elseText = mRewrite->getRewrittenText(
+          CharSourceRange::getTokenRange(left, right));
       // : get_source_text(CharSourceRange::getTokenRange(left, right), manager,
       // context).str();
 
@@ -248,10 +251,10 @@ void IfElseReturnChecker::runInternal(
               compoundThenStmt->getRBracLoc().getLocWithOffset(1)),
           ifStmt->getElseLoc().getLocWithOffset(elseLength));
       mFixList.push_back(FixItHint::CreateRemoval(range));
-      Rewrite.RemoveText(range);
+      mRewrite->RemoveText(range);
     } else {
       mFixList.push_back(FixItHint::CreateRemoval(ifStmt->getElseLoc()));
-      Rewrite.RemoveText(ifStmt->getElseLoc());
+      mRewrite->RemoveText(ifStmt->getElseLoc());
     }
   }
 
@@ -275,7 +278,7 @@ void IfElseReturnChecker::check(const MatchFinder::MatchResult &Result) {
   auto langOptions = Result.Context->getLangOpts();
   auto manager = Result.SourceManager;
 
-  Rewrite.setSourceMgr(*manager, langOptions);
+  mRewrite->setSourceMgr(*manager, langOptions);
 
   auto functionDecl =
       Result.Nodes.getNodeAs<clang::FunctionDecl>("functionDecl");
@@ -326,8 +329,8 @@ bool IfElseReturnChecker::reversCondition(const IfStmt *ifStmt,
     auto expansionBeginLoc = manager->getExpansionLoc(condition->getBeginLoc());
     auto expansionEndLoc = manager->getExpansionLoc(then->getLBracLoc());
 
-    Rewrite.InsertText(expansionBeginLoc, "!(");
-    Rewrite.InsertText(expansionEndLoc.getLocWithOffset(-1), ")");
+    mRewrite->InsertText(expansionBeginLoc, "!(");
+    mRewrite->InsertText(expansionEndLoc.getLocWithOffset(-1), ")");
     mFixList.push_back(FixItHint::CreateInsertion(expansionBeginLoc, "!("));
     mFixList.push_back(
         FixItHint::CreateInsertion(expansionEndLoc.getLocWithOffset(-1), ")"));
@@ -439,7 +442,7 @@ void IfElseReturnChecker::appendStmt(const CompoundStmt *stmt,
 
   std::string t = "\n" + indent.str() + ref.str();
 
-  Rewrite.InsertTextAfterToken(semi_loc, t);
+  mRewrite->InsertTextAfterToken(semi_loc, t);
   mFixList.push_back(FixItHint::CreateInsertion(semi_loc, t));
 }
 
@@ -482,8 +485,8 @@ void IfElseReturnChecker::indentBlock(const CompoundStmt *stmt,
   auto text = inputStream.str();
   text.pop_back();
 
-  Rewrite.RemoveText(stmt->getSourceRange());
-  Rewrite.InsertText(stmt->getBeginLoc(), text);
+  mRewrite->RemoveText(stmt->getSourceRange());
+  mRewrite->InsertText(stmt->getBeginLoc(), text);
 
   mFixList.push_back(FixItHint::CreateRemoval(stmt->getSourceRange()));
   mFixList.push_back(FixItHint::CreateInsertion(stmt->getBeginLoc(), text));
@@ -512,8 +515,8 @@ void IfElseReturnChecker::reverseStmt(const IfStmt *ifStmt,
   auto *elseStmt = ifStmt->getElse();
   auto *thenStmt = ifStmt->getThen();
 
-  auto thenRange = thenStmt->getSourceRange();
-  auto elseRange = elseStmt->getSourceRange();
+  // auto thenRange = thenStmt->getSourceRange();
+  // auto elseRange = elseStmt->getSourceRange();
 
   clang::CharSourceRange ifTokenRange;
   clang::CharSourceRange elseTokenRange;
@@ -571,10 +574,10 @@ void IfElseReturnChecker::reverseStmt(const IfStmt *ifStmt,
   // auto ifTokenRange =
   // CharSourceRange::getTokenRange(leftBorderOfThen.getLocWithOffset(1),
   //                                      rightBorderOfThen.getLocWithOffset(-1));
-  auto elseText = Rewrite.getRewrittenText(elseTokenRange);
+  auto elseText = mRewrite->getRewrittenText(elseTokenRange);
   //  : get_source_text(elseTokenRange, manager, &context).str();
 
-  auto ifText = Rewrite.getRewrittenText(ifTokenRange);
+  auto ifText = mRewrite->getRewrittenText(ifTokenRange);
   // auto mainIndent =
   // clang::Lexer::getIndentationForLine(ifStmt->getBeginLoc(), *manager);
 
@@ -587,17 +590,17 @@ void IfElseReturnChecker::reverseStmt(const IfStmt *ifStmt,
               compoundIfStmt->getRBracLoc().getLocWithOffset(1)),
           ifStmt->getElseLoc().getLocWithOffset(elseLength));
 
-      Rewrite.RemoveText(range);
+      mRewrite->RemoveText(range);
       mFixList.push_back(FixItHint::CreateRemoval(range));
     } else {
-      Rewrite.RemoveText(ifStmt->getElseLoc());
+      mRewrite->RemoveText(ifStmt->getElseLoc());
       mFixList.push_back(FixItHint::CreateRemoval(ifStmt->getElseLoc()));
     }
   } else {
-    Rewrite.ReplaceText(elseTokenRange, ifText);
+    mRewrite->ReplaceText(elseTokenRange, ifText);
     mFixList.push_back(FixItHint::CreateReplacement(elseTokenRange, ifText));
   }
-  Rewrite.ReplaceText(ifTokenRange, elseText);
+  mRewrite->ReplaceText(ifTokenRange, elseText);
   mFixList.push_back(FixItHint::CreateReplacement(ifTokenRange, elseText));
 }
 

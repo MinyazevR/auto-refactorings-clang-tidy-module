@@ -1,42 +1,95 @@
-name: build
+name: Build
 
 on:
-  push:
-     branches-ignore:
-      - 'dependabot**'
-  pull_request:
-    branches-ignore:
-      - 'dependabot**'
-  workflow_dispatch:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+      lint:
+        required: false
+        type: boolean
+        default: false
+      config:
+        required: false
+        type: string
+        default: Release
+      tests:
+        required: false
+        type: string
+        default: "./test/run_tests.sh"
+      shell:
+        required: false
+        type: string
+        default: bash
+      llvm_version:
+        required: false
+        type: string
+        default: master
+      enable_asan:
+        required: false
+        type: string
+        default: OFF
+        
 jobs:
-  lint:
+  build:
     defaults:
       run:
-        shell: bash
-        
-    runs-on: ubuntu-latest
+        shell: ${{ inputs.shell }}
+
+    runs-on: ${{ inputs.os }}
     steps:
     
     - name: Configure git
       run: |
-          git config --global core.symlinks true
-          git config --global core.autocrlf input
+        git config --global core.symlinks true
+        git config --global core.autocrlf input
           
     - name: Checkout repo
       uses: actions/checkout@v4
       with:
         submodules: recursive
         fetch-depth: 0
-        
-    - name: Install dependencies
-      run: | 
-        sudo apt-get update -y
-        sudo apt-get install -y clang-format --no-install-recommends
-      
-    - name: Run clang-format
-      run: ONLY_CHECK=1 ./run-clang-format.sh
+
+    - name: Ccache
+      uses: hendrikmuhs/ccache-action@v1.2.17
+      with:
+        key: ${{ runner.os }}-${{ inputs.config }}-${{ inputs.llvm_version }}
+
+    - name: Free Disk Space (Ubuntu)
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: true
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        docker-images: true
+        swap-storage: true
+
+    - name: Build
+      run: ./build.sh
+      env:
+        BUILD_TYPE: ${{ inputs.config }}
+        ENABLE_ASAN: ${{ inputs.enable_asan }}
+        LLVM_VERSION: ${{ inputs.llvm_version }}
+
+    - name: Run tests
+      run: ./tests/run_tests.sh "$CLANG_TIDY_BIN"
+
+    - name: Lint
+      uses: cpp-linter/cpp-linter-action@v2.13.4
+      id: linter
+      with:
+        style: 'file'
+        tidy-checks: ''
+        version: 15
+        database: ${{ env.COMPILE_COMMANDS_PATH }}
+        verbosity: 'info'
+        ignore-tidy: 'tests'
+        ignore-format: 'tests'
+      if: ${{ inputs.lint }}
+
+    - name: Clang-tidy exit
+      if: ${{ steps.linter.outputs.checks-failed > 0 }}
+      run: exit 1

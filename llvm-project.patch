@@ -1,0 +1,35 @@
+diff --git a/clang-tools-extra/clang-tidy/CMakeLists.txt b/clang-tools-extra/clang-tidy/CMakeLists.txt
+index 93117cf1d637..4f6750ddc84d 100644
+--- a/clang-tools-extra/clang-tidy/CMakeLists.txt
++++ b/clang-tools-extra/clang-tidy/CMakeLists.txt
+@@ -76,6 +76,7 @@ add_subdirectory(performance)
+ add_subdirectory(portability)
+ add_subdirectory(readability)
+ add_subdirectory(zircon)
++add_subdirectory(autorefactorings)
+ set(ALL_CLANG_TIDY_CHECKS
+   clangTidyAndroidModule
+   clangTidyAbseilModule
+@@ -100,6 +101,7 @@ set(ALL_CLANG_TIDY_CHECKS
+   clangTidyPortabilityModule
+   clangTidyReadabilityModule
+   clangTidyZirconModule
++  clangTidyAutoRefactoringModule
+   )
+ if(CLANG_TIDY_ENABLE_STATIC_ANALYZER)
+   list(APPEND ALL_CLANG_TIDY_CHECKS clangTidyMPIModule)
+diff --git a/clang-tools-extra/clang-tidy/ClangTidyForceLinker.h b/clang-tools-extra/clang-tidy/ClangTidyForceLinker.h
+index adde9136ff1d..0acc5ebcae93 100644
+--- a/clang-tools-extra/clang-tidy/ClangTidyForceLinker.h
++++ b/clang-tools-extra/clang-tidy/ClangTidyForceLinker.h
+@@ -137,6 +137,10 @@ extern volatile int ZirconModuleAnchorSource;
+ static int LLVM_ATTRIBUTE_UNUSED ZirconModuleAnchorDestination =
+     ZirconModuleAnchorSource;
+ 
++extern volatile int AutoRefactoringModuleAnchorSource;
++static int LLVM_ATTRIBUTE_UNUSED AutoRefactoringModuleAnchorDestination =
++    AutoRefactoringModuleAnchorSource;
++
+ } // namespace clang::tidy
+ 
+ #endif
