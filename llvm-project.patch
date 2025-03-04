@@ -19,14 +19,14 @@ index 93117cf1d637..4f6750ddc84d 100644
  if(CLANG_TIDY_ENABLE_STATIC_ANALYZER)
    list(APPEND ALL_CLANG_TIDY_CHECKS clangTidyMPIModule)
 diff --git a/clang-tools-extra/clang-tidy/ClangTidyForceLinker.h b/clang-tools-extra/clang-tidy/ClangTidyForceLinker.h
-index adde9136ff1d..c9c063f69404 100644
+index adde9136ff1d..0acc5ebcae93 100644
 --- a/clang-tools-extra/clang-tidy/ClangTidyForceLinker.h
 +++ b/clang-tools-extra/clang-tidy/ClangTidyForceLinker.h
 @@ -137,6 +137,10 @@ extern volatile int ZirconModuleAnchorSource;
  static int LLVM_ATTRIBUTE_UNUSED ZirconModuleAnchorDestination =
      ZirconModuleAnchorSource;
  
-+extern volatile int = AutoRefactoringModuleAnchorSource;
++extern volatile int AutoRefactoringModuleAnchorSource;
 +static int LLVM_ATTRIBUTE_UNUSED AutoRefactoringModuleAnchorDestination =
 +    AutoRefactoringModuleAnchorSource;
 +
