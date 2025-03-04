@@ -10,9 +10,6 @@ on:
         required: false
         type: boolean
         default: false
-      build:
-        required: true
-        type: boolean
       config:
         required: false
         type: string
@@ -54,6 +51,32 @@ jobs:
         submodules: recursive
         fetch-depth: 0
 
+    - name: Ccache
+      uses: hendrikmuhs/ccache-action@v1.2.17
+      with:
+        key: ${{ runner.os }}-${{ inputs.config }}-${{ inputs.llvm_version }}
+
+    - name: Free Disk Space (Ubuntu)
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: true
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        docker-images: true
+        swap-storage: true
+
+    - name: Build
+      run: ./build.sh
+      env:
+        BUILD_TYPE: ${{ inputs.config }}
+        ENABLE_ASAN: ${{ inputs.enable_asan }}
+        LLVM_VERSION: ${{ inputs.llvm_version }}
+
+    - name: Run tests
+      run: ./tests/run_tests.sh "$CLANG_TIDY_BIN"
+
     - name: Lint
       uses: cpp-linter/cpp-linter-action@v2.13.4
       id: linter
@@ -70,33 +93,3 @@ jobs:
     - name: Clang-tidy exit
       if: ${{ steps.linter.outputs.checks-failed > 0 }}
       run: exit 1
-
-    - name: Ccache
-      uses: hendrikmuhs/ccache-action@v1.2.17
-      with:
-        key: ${{ runner.os }}-${{ inputs.config }}-${{ inputs.llvm_version }}
-      if: ${{ inputs.build }}
-
-    - name: Free Disk Space (Ubuntu)
-      uses: jlumbroso/free-disk-space@main
-      with:
-        tool-cache: true
-        android: true
-        dotnet: true
-        haskell: true
-        large-packages: true
-        docker-images: true
-        swap-storage: true
-      if: ${{ inputs.build }}
-
-    - name: Build
-      run: ./build.sh
-      env:
-        BUILD_TYPE: ${{ inputs.config }}
-        ENABLE_ASAN: ${{ inputs.enable_asan }}
-        LLVM_VERSION: ${{ inputs.llvm_version }}
-      if: ${{ inputs.build }}
-
-    - name: Run tests
-      run: ./tests/run_tests.sh "$CLANG_TIDY_BIN"
-      if: ${{ inputs.build }}

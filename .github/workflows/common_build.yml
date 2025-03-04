@@ -14,35 +14,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint:
+
+  build-linux-asan-release-llvm:
     uses: ./.github/workflows/build.yml
     with:
       os: ubuntu-latest
       lint: true
-      build: false
-      
-  build-linux-asan-release-llvm:
-    needs: lint
-    uses: ./.github/workflows/build.yml
-    with:
-      os: ubuntu-latest
-      lint: false
-      build: true
       enable_asan: ON
       llvm_version: 19.1.7
       
   build-linux-asan-master-llvm:
-    needs: lint
     uses: ./.github/workflows/build.yml
     with:
       os: ubuntu-latest
-      build: true
       enable_asan: ON
 
   build-linux-release:
-    needs: lint
     uses: ./.github/workflows/build.yml
     with:
       os: ubuntu-latest
-      build: true
       llvm_version: 19.1.7
