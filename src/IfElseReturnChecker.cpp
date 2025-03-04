@@ -168,7 +168,7 @@ IfElseReturnChecker::IfElseReturnChecker(StringRef Name,
                                          ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context), mIndent(Options.get("Indent", 4)),
       mNeedShift(Options.get("NeedShift", false)),
-      mRewrite(std::make_unique<Rewriter>(new Rewriter())) {}
+      mRewrite(std::make_unique<Rewriter>()) {}
 
 void IfElseReturnChecker::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
@@ -515,8 +515,8 @@ void IfElseReturnChecker::reverseStmt(const IfStmt *ifStmt,
   auto *elseStmt = ifStmt->getElse();
   auto *thenStmt = ifStmt->getThen();
 
-  auto thenRange = thenStmt->getSourceRange();
-  auto elseRange = elseStmt->getSourceRange();
+  // auto thenRange = thenStmt->getSourceRange();
+  // auto elseRange = elseStmt->getSourceRange();
 
   clang::CharSourceRange ifTokenRange;
   clang::CharSourceRange elseTokenRange;

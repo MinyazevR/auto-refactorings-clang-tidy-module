@@ -2,8 +2,12 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_AUTOREFACTORING_IFELSECHECK_H
 
 #include "../ClangTidyCheck.h"
+#include "clang/Rewrite/Core/Rewriter.h"
 
-class Rewriter;
+namespace clang {
+class CFG;
+class CFGStmtMap;
+} // namespace clang
 
 namespace clang::tidy::autorefactorings {
 
@@ -16,7 +20,7 @@ public:
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
-  void runInternal(clang::IfStmt *ifStmt,
+  void runInternal(IfStmt *ifStmt,
                    const ast_matchers::MatchFinder::MatchResult &Result,
                    clang::CFG &cfg);
 
