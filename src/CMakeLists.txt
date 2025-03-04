@@ -23,6 +23,14 @@ add_clang_library(clangTidyAutoRefactoringModule STATIC
   ClangDriverOptions
   )
 
+if(ENABLE_ASAN)
+  clang_target_link_libraries(clangTidyAutoRefactoringModule
+    PRIVATE
+    asan
+    ubsan
+  )
+endif()
+
 clang_target_link_libraries(clangTidyAutoRefactoringModule
   PRIVATE
   clangAnalysis
@@ -41,10 +49,3 @@ clang_target_link_libraries(clangTidyAutoRefactoringModule
   clangAPINotes
   clangRewrite
 )
-
-if(ENABLE_ASAN) 
-  clang_target_link_libraries(clangTidyAutoRefactoringModule
-    PRIVATE
-    asan
-  )
-endif()
