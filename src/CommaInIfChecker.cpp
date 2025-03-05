@@ -7,8 +7,9 @@ CommaInIfChecker::CommaInIfChecker(StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context) {}
 
 void CommaInIfChecker::check(const MatchFinder::MatchResult &Result) {
-  auto conditionExpr = Result.Nodes.getNodeAs<clang::Expr>("conditionExpr");
-  diag(conditionExpr->getBeginLoc(),
+  const auto *ConditionExpr =
+      Result.Nodes.getNodeAs<clang::Expr>("conditionExpr");
+  diag(ConditionExpr->getBeginLoc(),
        "It looks like you are using comma in the if condition.");
 }
 
