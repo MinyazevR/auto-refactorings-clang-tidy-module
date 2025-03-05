@@ -3,6 +3,7 @@
 #include "../ClangTidyModuleRegistry.h"
 #include "CommaInIfChecker.h"
 #include "IfElseReturnChecker.h"
+#include "CallExprInIfChecker.h"
 
 namespace clang::tidy {
 namespace autorefactorings {
@@ -13,6 +14,7 @@ public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
     CheckFactories.registerCheck<IfElseReturnChecker>("if-else-refactor");
     CheckFactories.registerCheck<CommaInIfChecker>("if-comma-refactor");
+    CheckFactories.registerCheck<CallExpInIfChecker>("if-call-refactor");
   }
 };
 

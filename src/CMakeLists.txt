@@ -14,6 +14,7 @@ add_clang_library(clangTidyAutoRefactoringModule STATIC
   AutoRefactoringModule.cpp
   IfElseReturnChecker.cpp
   CommaInIfChecker.cpp
+  CallExprInIfChecker.cpp
   LINK_LIBS
   clangTidy
   clangTidyUtils

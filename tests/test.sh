@@ -22,6 +22,7 @@ do
     echo "Test for file "$i" with config $CLANG_TIDY_CONFIG passed"
   else
     echo "Test for file "$i" with config $CLANG_TIDY_CONFIG failed"
+    diff "$i" "$OUTPUT_FILE"
     exit 1
   fi
 done
