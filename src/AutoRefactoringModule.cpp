@@ -1,9 +1,9 @@
 #include "../ClangTidy.h"
 #include "../ClangTidyModule.h"
 #include "../ClangTidyModuleRegistry.h"
+#include "CallExprInIfChecker.h"
 #include "CommaInIfChecker.h"
 #include "IfElseReturnChecker.h"
-#include "CallExprInIfChecker.h"
 
 namespace clang::tidy {
 namespace autorefactorings {
