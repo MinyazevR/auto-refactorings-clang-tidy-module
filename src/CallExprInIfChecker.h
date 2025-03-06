@@ -17,6 +17,9 @@ public:
 
 private:
   int VariableCounter = 0;
+  bool UseAuto;
+  bool UseDeclRefExpr;
+  bool UseAllCallExpr;
   std::string VariablePrefix;
   std::string Pattern;
   std::string ReturnTypePattern;

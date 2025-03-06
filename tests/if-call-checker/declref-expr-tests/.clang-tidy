@@ -1,0 +1,5 @@
+Checks: 'if-call-refactor'
+CheckOptions: 
+  if-call-refactor.UseAuto: false
+  if-call-refactor.UseDeclRefExpr: true
+  if-call-refactor.UseAllCallExpr: false

@@ -35,9 +35,8 @@ void CommaInIfChecker::check(const MatchFinder::MatchResult &Result) {
   while (CurrentExpressionBeginLocation.isValid() &&
          CurrentExpressionBeginLocation < ConditionExprEndLocation) {
 
-    auto NextTokenOptional =
-        clang::Lexer::findNextToken(CurrentExpressionBeginLocation, *Manager,
-                                    AstContext->getLangOpts());
+    auto NextTokenOptional = clang::Lexer::findNextToken(
+        CurrentExpressionBeginLocation, *Manager, AstContext->getLangOpts());
 
     if (NextTokenOptional.has_value()) {
       auto NextToken = NextTokenOptional.value();
