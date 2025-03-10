@@ -15,7 +15,7 @@ class IfElseReturnChecker : public ClangTidyCheck {
 public:
   IfElseReturnChecker(StringRef Name, ClangTidyContext *Context);
   bool isLanguageVersionSupported(const LangOptions &LangOpts) const override {
-    return LangOpts.C99;
+    return true;
   }
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
@@ -23,6 +23,11 @@ public:
   void runInternal(IfStmt *IfStmt,
                    const ast_matchers::MatchFinder::MatchResult &Result,
                    clang::CFG &Cfg);
+
+  void registerPPCallbacks(const SourceManager &SM, Preprocessor *PP,
+                           Preprocessor *ModuleExpanderPP) override;
+  using PreproccessorEndLocations =
+      llvm::DenseMap<FileID, SmallVector<SourceRange>>;
 
 private:
   // The offset required when removing the else block is set by the user in
@@ -33,18 +38,23 @@ private:
   // .clang-tidy.
   bool NeedShift{};
 
+  bool ReverseOnNotUO{};
+
   // A rewriter used to track intermediate changes to implement changes to all
   // IfStmts in one pass when reversining surrounding IfStmts, you need to have
   // information about internal ones
   std::unique_ptr<Rewriter> Rewrite;
-  std::list<clang::FixItHint> FixList;
+  SmallVector<clang::FixItHint> FixList;
+
+  PreproccessorEndLocations PPConditionals;
 
   /// The method required to reverse the ifStmt condition
   /// In the simplest case, it just adds !( beginning of if condition and ) at
   /// the end. The C language is supposed to support a more beautiful style by
   /// type: if (x > y) -> if (x <= y) What is difficult in C++ due to operator
   /// overloading.
-  bool reversCondition(const IfStmt *IfStmt, const SourceManager *Manager);
+  bool reverseCondition(const IfStmt *IfStmt, const SourceManager *Manager,
+                        const clang::ASTContext *Context);
 
   /// Accepts a compound statement and replaces it in the source code with a
   /// string, shifting to the left by indent param.

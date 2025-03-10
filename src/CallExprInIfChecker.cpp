@@ -92,16 +92,12 @@ void CallExpInIfChecker::check(const MatchFinder::MatchResult &Result) {
       Manager->getExpansionLoc(IfStmtNode->getBeginLoc()), *Manager);
 
   if (AssigmentExpression && UseDeclRefExpr) {
-    auto AssigmentExpressionSourceCode =
-        clang::Lexer::getSourceText(clang::CharSourceRange::getTokenRange(
-                                        AssigmentExpression->getSourceRange()),
-                                    *Manager, AstContext->getLangOpts());
-
-    if (AssigmentExpressionSourceCode.starts_with('(') &&
-        AssigmentExpressionSourceCode.ends_with(')')) {
-      AssigmentExpressionSourceCode =
-          AssigmentExpressionSourceCode.drop_front(1).drop_back(1);
-    }
+    const auto *AssigmentExpressionWithoutParens =
+        AssigmentExpression->IgnoreParens();
+    auto AssigmentExpressionSourceCode = clang::Lexer::getSourceText(
+        clang::CharSourceRange::getTokenRange(
+            AssigmentExpressionWithoutParens->getSourceRange()),
+        *Manager, AstContext->getLangOpts());
 
     auto Str = IfStmtIndent.str() + AssigmentExpressionSourceCode.str() + ";\n";
 
@@ -129,6 +125,7 @@ void CallExpInIfChecker::check(const MatchFinder::MatchResult &Result) {
   if (!UseAllCallExpr) {
     return;
   }
+
   auto CallExprSourceCode = clang::Lexer::getSourceText(
       clang::CharSourceRange::getTokenRange(CallExpr->getSourceRange()),
       *Manager, AstContext->getLangOpts());
