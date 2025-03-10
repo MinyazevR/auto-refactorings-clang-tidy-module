@@ -42,7 +42,7 @@ void CallExpInIfChecker::check(const MatchFinder::MatchResult &Result) {
   auto *Manager = Result.SourceManager;
 
   if (!FromSystemCHeader) {
-    auto CallExprDecl = CallExpr->getCalleeDecl();
+    const auto *CallExprDecl = CallExpr->getCalleeDecl();
     auto CallExprLocation =
         Manager->getSpellingLoc(CallExprDecl->getLocation());
 
