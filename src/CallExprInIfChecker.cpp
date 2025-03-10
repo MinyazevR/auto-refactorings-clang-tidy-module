@@ -10,8 +10,10 @@ CallExpInIfChecker::CallExpInIfChecker(StringRef Name,
     : ClangTidyCheck(Name, Context), UseAuto(Options.get("UseAuto", false)),
       UseDeclRefExpr(Options.get("UseDeclRefExprOptions", true)),
       UseAllCallExpr(Options.get("UseAllCallExpr", true)),
+      FromSystemCHeader(Options.get("FromSystemCHeader", false)),
       VariablePrefix(Options.get("VariablePrefix", "conditionVariable")),
       Pattern(Options.get("Filter", ".*")),
+      IgnorePattern(Options.get("IgnoreFilter", "")),
       ReturnTypePattern(Options.get("CallReturnTypeFilter", ".*")) {}
 
 void CallExpInIfChecker::storeOptions(ClangTidyOptions::OptionMap &Opts) {
@@ -21,6 +23,8 @@ void CallExpInIfChecker::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "UseAuto", UseAuto);
   Options.store(Opts, "UseDeclRefExpr", UseDeclRefExpr);
   Options.store(Opts, "UseAllCallExpr", UseAllCallExpr);
+  Options.store(Opts, "FromSystemCHeader", FromSystemCHeader);
+  Options.store(Opts, "IgnoreFilter", IgnorePattern);
 }
 
 void CallExpInIfChecker::check(const MatchFinder::MatchResult &Result) {
@@ -30,14 +34,39 @@ void CallExpInIfChecker::check(const MatchFinder::MatchResult &Result) {
   const auto *IfStmtDeclRefExpr =
       Result.Nodes.getNodeAs<clang::DeclRefExpr>("declRefExpr");
 
+  if (!IfStmtNode || !CallExpr) {
+    return;
+  }
+
   auto *AstContext = Result.Context;
   auto *Manager = Result.SourceManager;
+
+  if (!FromSystemCHeader) {
+    auto CallExprDecl = CallExpr->getCalleeDecl();
+    auto CallExprLocation =
+        Manager->getSpellingLoc(CallExprDecl->getLocation());
+
+    if (Manager->isInSystemHeader(CallExprLocation)) {
+      return;
+    }
+  }
+
   auto ReturnType = CallExpr->getCallReturnType(*AstContext);
 
   // Checking that CallExpr is in If Condition
-  if (!Manager->getExpansionRange(IfStmtNode->getCond()->getSourceRange())
-           .getAsRange()
-           .fullyContains(CallExpr->getSourceRange())) {
+  const auto *IfStmtCondition = IfStmtNode->getCond();
+  const auto IfStmtConditionSourceRange =
+      IfStmtNode->getCond()->getSourceRange();
+  if (!IfStmtCondition || IfStmtConditionSourceRange.isInvalid()) {
+    return;
+  }
+
+  const auto IfStmtConditionExpansionSourceRange =
+      Manager->getExpansionRange(IfStmtConditionSourceRange);
+
+  if (IfStmtConditionExpansionSourceRange.isInvalid() ||
+      !IfStmtConditionExpansionSourceRange.getAsRange().fullyContains(
+          CallExpr->getSourceRange())) {
     return;
   }
 
@@ -66,6 +95,10 @@ void CallExpInIfChecker::check(const MatchFinder::MatchResult &Result) {
     if (!CallExprRegex.match(CalleeStringName)) {
       return;
     }
+    static llvm::Regex CallExprIgnoreRegex(IgnorePattern);
+    if (CallExprIgnoreRegex.match(CalleeStringName)) {
+      return;
+    }
   }
 
   std::string ReturnTypeString;
@@ -78,8 +111,11 @@ void CallExpInIfChecker::check(const MatchFinder::MatchResult &Result) {
       return;
     }
 
-    ReturnTypeString = ReturnType.getAsString();
+    if (Type->isVoidType()) {
+      return;
+    }
 
+    ReturnTypeString = ReturnType.getAsString();
     // Checking type of the returned value
     static llvm::Regex ReturnTypeRegex(ReturnTypePattern);
     if (!ReturnTypeRegex.match(ReturnTypeString)) {
@@ -94,6 +130,9 @@ void CallExpInIfChecker::check(const MatchFinder::MatchResult &Result) {
   if (AssigmentExpression && UseDeclRefExpr) {
     const auto *AssigmentExpressionWithoutParens =
         AssigmentExpression->IgnoreParens();
+    if (!AssigmentExpressionWithoutParens) {
+      return;
+    }
     auto AssigmentExpressionSourceCode = clang::Lexer::getSourceText(
         clang::CharSourceRange::getTokenRange(
             AssigmentExpressionWithoutParens->getSourceRange()),
@@ -125,7 +164,6 @@ void CallExpInIfChecker::check(const MatchFinder::MatchResult &Result) {
   if (!UseAllCallExpr) {
     return;
   }
-
   auto CallExprSourceCode = clang::Lexer::getSourceText(
       clang::CharSourceRange::getTokenRange(CallExpr->getSourceRange()),
       *Manager, AstContext->getLangOpts());
