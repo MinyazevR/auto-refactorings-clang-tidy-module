@@ -10,7 +10,7 @@ public:
   CallExpInIfChecker(StringRef Name, ClangTidyContext *Context);
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
   bool isLanguageVersionSupported(const LangOptions &LangOpts) const override {
-    return LangOpts.C99;
+    return true;
   }
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
@@ -20,8 +20,10 @@ private:
   bool UseAuto;
   bool UseDeclRefExpr;
   bool UseAllCallExpr;
+  bool FromSystemCHeader;
   std::string VariablePrefix;
   std::string Pattern;
+  std::string IgnorePattern;
   std::string ReturnTypePattern;
 };
 }; // namespace clang::tidy::autorefactorings
