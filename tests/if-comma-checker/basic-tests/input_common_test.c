@@ -12,7 +12,7 @@ int main(int argc, char **argv) {
 	
 	int y;
 	int z;
-	if((x = 6, y = 5, (x + y) < 10)) {
+	if(x = 6, y = 5, (x + y) < 10) {
 		printf("%d", 1);
 	}
 	

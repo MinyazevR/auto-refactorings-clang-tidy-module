@@ -11,7 +11,13 @@ void CommaInIfChecker::check(const MatchFinder::MatchResult &Result) {
   const auto *ConditionExpr =
       Result.Nodes.getNodeAs<clang::Expr>("conditionExpr");
   const auto *IfStmtNode = Result.Nodes.getNodeAs<clang::IfStmt>("ifStmt");
+  const auto *FirstBinaryOperator =
+      Result.Nodes.getNodeAs<clang::BinaryOperator>("binaryOperator");
   auto *const Manager = Result.SourceManager;
+
+  if (FirstBinaryOperator && !ConditionExpr) {
+    ConditionExpr = IfStmtNode->getCond();
+  }
 
   // Checking that ConditionExpr is in If Condition
   if (!Manager->getExpansionRange(IfStmtNode->getCond()->getSourceRange())
@@ -20,8 +26,11 @@ void CommaInIfChecker::check(const MatchFinder::MatchResult &Result) {
     return;
   }
 
-  auto ConditionExprBeginLocation = ConditionExpr->getBeginLoc();
+  auto InitOffset = FirstBinaryOperator ? -1 : 0;
+  auto ConditionExprBeginLocation =
+      ConditionExpr->getBeginLoc().getLocWithOffset(InitOffset);
   const auto ConditionExprEndLocation = ConditionExpr->getEndLoc();
+
   auto *const AstContext = Result.Context;
   clang::SourceLocation CurrentExpressionBeginLocation =
       ConditionExprBeginLocation;
@@ -70,9 +79,10 @@ void CommaInIfChecker::check(const MatchFinder::MatchResult &Result) {
     return;
   }
 
+  int Offset = FirstBinaryOperator ? 0 : 1;
   auto LastSourceRange =
       clang::SourceRange({LastCommaLocation.getLocWithOffset(1),
-                          ConditionExprEndLocation.getLocWithOffset(-1)});
+                          ConditionExprEndLocation.getLocWithOffset(-Offset)});
   auto LastExpressionsSourceCode =
       clang::Lexer::getSourceText(
           clang::CharSourceRange::getTokenRange(LastSourceRange), *Manager,
@@ -91,8 +101,8 @@ void CommaInIfChecker::check(const MatchFinder::MatchResult &Result) {
   auto ExprBeginLocation = ConditionExprSourceRange.getBegin();
   auto ExprEndLocation = ConditionExprSourceRange.getEnd();
   auto NewSourceRange =
-      clang::SourceRange({ExprBeginLocation.getLocWithOffset(1),
-                          ExprEndLocation.getLocWithOffset(-1)});
+      clang::SourceRange({ExprBeginLocation.getLocWithOffset(Offset),
+                          ExprEndLocation.getLocWithOffset(-Offset)});
   Diag << FixItHint::CreateReplacement(NewSourceRange,
                                        LastExpressionsSourceCode);
 }
@@ -105,4 +115,11 @@ void CommaInIfChecker::registerMatchers(MatchFinder *Finder) {
                 unless(hasAncestor(parenExpr())))
           .bind("conditionExpr"),
       this);
+
+  Finder->addMatcher(binaryOperator(hasOperatorName(","),
+                                    hasParent(ifStmt().bind("ifStmt")),
+                                    unless(hasAncestor(binaryOperator())),
+                                    unless(hasAncestor(parenExpr())))
+                         .bind("binaryOperator"),
+                     this);
 }

@@ -15,7 +15,7 @@ int main(int argc, char **argv) {
 	int z;
 	x = 6;
 	y = 5;
-	if(((x + y) < 10)) {
+	if((x + y) < 10) {
 		printf("%d", 1);
 	}
 	
