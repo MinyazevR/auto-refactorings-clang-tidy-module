@@ -5,7 +5,6 @@
 #include "clang/Analysis/CFG.h"
 #include "clang/Analysis/CFGStmtMap.h"
 #include "clang/Lex/Preprocessor.h"
-#include "clang/Rewrite/Core/Rewriter.h"
 #include <sstream>
 
 using namespace clang;
@@ -13,7 +12,28 @@ using namespace clang::ast_matchers;
 using namespace clang::tidy::autorefactorings;
 
 namespace {
-class IfStmtVisitor final : public RecursiveASTVisitor<IfStmtVisitor> {
+
+class PPCollector : public PPCallbacks {
+
+  IfElseReturnChecker::PreproccessorEndLocations &Collections;
+  const SourceManager &Manager;
+
+public:
+  PPCollector(IfElseReturnChecker::PreproccessorEndLocations &Collections,
+              const SourceManager &Manager)
+      : Collections(Collections), Manager(Manager) {}
+
+  void Endif(SourceLocation Loc, SourceLocation IfLoc) override {
+
+    if (!Manager.isWrittenInSameFile(Loc, IfLoc)) {
+      return;
+    }
+    auto &Collection = Collections[Manager.getFileID(Loc)];
+    Collection.emplace_back(SourceRange(Loc, IfLoc));
+  }
+};
+
+class IfStmtVisitor : public RecursiveASTVisitor<IfStmtVisitor> {
 
   IfElseReturnChecker *Checker;
   const MatchFinder::MatchResult &Result;
@@ -34,26 +54,20 @@ public:
       Checker->runInternal(IfStmt, Result, Cfg);
       return true;
     }
-    return RecursiveASTVisitor::VisitIfStmt(IfStmt);
+    return RecursiveASTVisitor<IfStmtVisitor>::VisitIfStmt(IfStmt);
   }
 
-  bool TraverseStmt(Stmt *CurrentStmt) {
+  bool TraverseIfStmt(IfStmt *CurrentStmt) {
     if (!CurrentStmt)
       return true;
 
-    if (auto *IfStmt = dyn_cast<clang::IfStmt>(CurrentStmt)) {
-      IfStmt->dumpPretty(*Result.Context);
-
-      if (auto *ThenStmt = IfStmt->getThen()) {
-        TraverseStmt(ThenStmt);
-      }
-      if (auto *ElseStmt = IfStmt->getElse()) {
-        TraverseStmt(ElseStmt);
-      }
-      return VisitIfStmt(IfStmt);
+    if (auto *ThenStmt = CurrentStmt->getThen()) {
+      TraverseStmt(ThenStmt);
     }
-
-    return RecursiveASTVisitor::TraverseStmt(CurrentStmt);
+    if (auto *ElseStmt = CurrentStmt->getElse()) {
+      TraverseStmt(ElseStmt);
+    }
+    return VisitIfStmt(CurrentStmt);
   }
 };
 } // namespace
@@ -108,7 +122,7 @@ static bool isOnlyReturnBlock(const clang::CFGBlock *Block,
 }
 
 /// Get the source text using CharRange and SourceManager
-static llvm::StringRef getSourceText(const clang::CharSourceRange &Range,
+static llvm::StringRef getSourceText(const clang::SourceRange &Range,
                                      const clang::SourceManager *Manager,
                                      const clang::ASTContext *Context) {
 
@@ -174,6 +188,35 @@ static int getNodeWeight(const Stmt *Node, clang::SourceManager *Manager) {
          Manager->getSpellingLineNumber(Start);
 }
 
+static bool fromMacro(const Stmt *S) { return S->getBeginLoc().isMacroID(); }
+
+static bool isPreproccessorInIf(
+    const IfElseReturnChecker::PreproccessorEndLocations &Locations,
+    const clang::IfStmt *IfStmt, const SourceManager &Manager) {
+  if (fromMacro(IfStmt)) {
+    return true;
+  }
+  auto BeginIfLocation = IfStmt->getBeginLoc();
+  auto EndIfLocation = IfStmt->getEndLoc();
+
+  auto Iter = Locations.find(Manager.getFileID(BeginIfLocation));
+  if (Iter == Locations.end() || Iter->getSecond().empty()) {
+    return false;
+  }
+  auto SourceRanges = Iter->getSecond();
+  for (auto &&Range : SourceRanges) {
+    if ((Range.getBegin() > BeginIfLocation) &&
+        (Range.getBegin() < EndIfLocation)) {
+      return true;
+    }
+    if ((Range.getEnd() > BeginIfLocation) &&
+        (Range.getEnd() < EndIfLocation)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /// When using spaces, it is difficult to understand what Indent is, so the user
 /// is prompted
 // to use the Indent parameter in .clang-tidy.
@@ -184,7 +227,14 @@ IfElseReturnChecker::IfElseReturnChecker(StringRef Name,
                                          ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context), Indent(Options.get("Indent", 4)),
       NeedShift(Options.get("NeedShift", false)),
+      ReverseOnNotUO(Options.get("ReverseOnNotUO", false)),
       Rewrite(std::make_unique<Rewriter>()) {}
+
+void IfElseReturnChecker::registerPPCallbacks(const SourceManager &SM,
+                                              Preprocessor *PP,
+                                              Preprocessor *ModuleExpanderPP) {
+  PP->addPPCallbacks(std::make_unique<PPCollector>(this->PPConditionals, SM));
+}
 
 void IfElseReturnChecker::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
@@ -194,28 +244,67 @@ void IfElseReturnChecker::registerMatchers(MatchFinder *Finder) {
       this);
 }
 
+static bool isExpectedBinaryOp(const Expr *E) {
+  const auto *BinaryOp = dyn_cast<BinaryOperator>(E);
+  return !fromMacro(E) && BinaryOp && BinaryOp->isLogicalOp() &&
+         (BinaryOp->getType()->isBooleanType() ||
+          BinaryOp->getType()->isIntegerType());
+}
+
+template <typename Functor>
+static bool checkBothSides(const BinaryOperator *BO, Functor Func) {
+  return Func(BO->getLHS()) && Func(BO->getRHS());
+}
+
+static bool isExpectedUnaryLNot(const Expr *E) {
+  return !fromMacro(E) && isa<UnaryOperator>(E) &&
+         cast<UnaryOperator>(E)->getOpcode() == UO_LNot;
+}
+
 void IfElseReturnChecker::runInternal(
     IfStmt *IfStmt, const ast_matchers::MatchFinder::MatchResult &Result,
     clang::CFG &Cfg) {
 
   auto IfLocation = IfStmt->getBeginLoc();
   auto *const Manager = Result.SourceManager;
-
   if (Manager->isMacroArgExpansion(IfLocation) ||
       Manager->isMacroBodyExpansion(IfLocation) ||
       Manager->isInExternCSystemHeader(IfLocation) ||
       Manager->isInSystemHeader(IfLocation) ||
-      Manager->isInSystemMacro(IfLocation)) {
+      Manager->isInSystemMacro(IfLocation) || fromMacro(IfStmt)) {
+    return;
+  }
+
+  if (isPreproccessorInIf(PPConditionals, IfStmt, *Manager)) {
     return;
   }
 
   const auto *ThenStmt = IfStmt->getThen();
   const auto *ElseStmt = IfStmt->getElse();
+  bool IsThenFirst = true;
+  if (ReverseOnNotUO) {
+    const auto *Condition = IfStmt->getCond();
+    if (const auto *UnaryCondition = dyn_cast<UnaryOperator>(Condition)) {
+      auto OpCode = UnaryCondition->getOpcode();
+      if (OpCode == UO_LNot) {
+        IsThenFirst = false;
+      }
+    } else {
+      if (isExpectedBinaryOp(Condition)) {
+        const auto *BinaryOp = cast<BinaryOperator>(Condition);
+        if (checkBothSides(BinaryOp, [](const Expr *E) {
+              return isExpectedUnaryLNot(E);
+            })) {
+          IsThenFirst = false;
+        }
+      }
+    }
+  } else {
+    IsThenFirst =
+        getNodeWeight(ThenStmt, Manager) <= getNodeWeight(ElseStmt, Manager);
+  }
 
-  bool IsThenFirst =
-      getNodeWeight(ThenStmt, Manager) <= getNodeWeight(ElseStmt, Manager);
   auto *TargetStmt = IsThenFirst ? ThenStmt : ElseStmt;
-
   const auto *FunctionDecl =
       Result.Nodes.getNodeAs<clang::FunctionDecl>("functionDecl");
 
@@ -233,7 +322,7 @@ void IfElseReturnChecker::runInternal(
   }
 
   if (!Context || !IsThenFirst) {
-    if (!reversCondition(IfStmt, Manager)) {
+    if (!reverseCondition(IfStmt, Manager, Context)) {
       return;
     }
     reverseStmt(IfStmt, *Context, Manager);
@@ -285,6 +374,7 @@ void IfElseReturnChecker::runInternal(
 void IfElseReturnChecker::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "Indent", Indent);
   Options.store(Opts, "NeedShift", NeedShift);
+  Options.store(Opts, "ReverseOnNotUO", ReverseOnNotUO);
 }
 
 void IfElseReturnChecker::check(const MatchFinder::MatchResult &Result) {
@@ -305,25 +395,55 @@ void IfElseReturnChecker::check(const MatchFinder::MatchResult &Result) {
 
 /// if (cond) ----> if (!(cond))
 /// if (x > y) ----> if (x <= y)
-bool IfElseReturnChecker::reversCondition(const IfStmt *IfStmt,
-                                          const clang::SourceManager *Manager) {
-
+bool IfElseReturnChecker::reverseCondition(const IfStmt *IfStmt,
+                                           const clang::SourceManager *Manager,
+                                           const clang::ASTContext *Context) {
   // if ifStmt is init as if (auto x = ....)
   if (IfStmt->hasInitStorage()) {
     return false;
   }
 
-  // Negating the condition
   const auto *Condition = IfStmt->getCond();
   if (const auto *Then = dyn_cast<CompoundStmt>(IfStmt->getThen())) {
-    auto ExpansionBeginLoc = Manager->getExpansionLoc(Condition->getBeginLoc());
-    auto ExpansionEndLoc = Manager->getExpansionLoc(Then->getLBracLoc());
+    auto ExpansionBeginLoc = Condition->getBeginLoc();
+
+    if (const auto *UnaryCondition = dyn_cast<UnaryOperator>(Condition)) {
+      auto OpCode = UnaryCondition->getOpcode();
+      if (OpCode == UO_LNot) {
+        auto ConditionSourceText = getSourceText(
+            {ExpansionBeginLoc, ExpansionBeginLoc.getLocWithOffset(2)}, Manager,
+            Context);
+        if (ConditionSourceText.starts_with("!(")) {
+          Rewrite->RemoveText(
+              {ExpansionBeginLoc, ExpansionBeginLoc.getLocWithOffset(1)});
+          Rewrite->RemoveText(UnaryCondition->getEndLoc());
+          FixList.push_back(FixItHint::CreateRemoval(
+              {ExpansionBeginLoc, ExpansionBeginLoc.getLocWithOffset(1)}));
+          FixList.push_back(
+              FixItHint::CreateRemoval(UnaryCondition->getEndLoc()));
+          return true;
+        }
+        if (ConditionSourceText.starts_with("!")) {
+          Rewrite->RemoveText(UnaryCondition->getOperatorLoc());
+          FixList.push_back(
+              FixItHint::CreateRemoval(UnaryCondition->getOperatorLoc()));
+          return true;
+        }
+      }
+    }
+
+    SourceLocation ExpansionEndLoc = clang::Lexer::findLocationAfterToken(
+        Manager->getExpansionLoc(Condition->getEndLoc()), tok::r_paren,
+        *Manager, Context->getLangOpts(), false);
+
+    if (ExpansionEndLoc.isInvalid()) {
+      ExpansionEndLoc = Then->getLBracLoc().getLocWithOffset(-1);
+    }
 
     Rewrite->InsertText(ExpansionBeginLoc, "!(");
-    Rewrite->InsertText(ExpansionEndLoc.getLocWithOffset(-1), ")");
+    Rewrite->InsertText(ExpansionEndLoc, ")");
     FixList.push_back(FixItHint::CreateInsertion(ExpansionBeginLoc, "!("));
-    FixList.push_back(
-        FixItHint::CreateInsertion(ExpansionEndLoc.getLocWithOffset(-1), ")"));
+    FixList.push_back(FixItHint::CreateInsertion(ExpansionEndLoc, ")"));
     return true;
   }
 
@@ -409,16 +529,15 @@ void IfElseReturnChecker::appendStmt(const CompoundStmt *CmdStmt,
 
   // Get source text for new stmt
   auto StmtToAddSourceText =
-      getSourceText(Manager->getExpansionRange(StmtToAdd->getSourceRange()),
-                    Manager, Context);
+      getSourceText(StmtToAdd->getSourceRange(), Manager, Context);
 
   // Get range and location for lastStmt in CompoundStmt
-  auto LastStmtRange = Manager->getExpansionRange(LastStmt->getSourceRange());
+  auto LastStmtRange = LastStmt->getSourceRange();
   auto LastTokenLoc = Manager->getSpellingLoc(LastStmtRange.getEnd());
 
   // Take a transfer for the last stmt to use it to insert a new one
-  auto Indent = clang::Lexer::getIndentationForLine(
-      Manager->getExpansionLoc(LastStmt->getBeginLoc()), *Manager);
+  auto Indent =
+      clang::Lexer::getIndentationForLine(LastStmt->getBeginLoc(), *Manager);
 
   // You need to insert a new instruction immediately after the last one,
   // so you need to find the place to use ";"
@@ -485,16 +604,11 @@ void IfElseReturnChecker::moveBlock(const CompoundStmt *Stmt,
 
 static clang::CharSourceRange
 getCompoundStmtRange(const CompoundStmt *Stmt, const clang::ASTContext &Context,
-                     const SourceManager *Manager, unsigned long Indent = 1) {
+                     const SourceManager *Manager, unsigned long Indent = 0) {
   auto LBracLoc = Stmt->getLBracLoc();
   auto RBracLoc = Stmt->getRBracLoc();
-
-  auto LeftBorder = Manager->getExpansionLoc(LBracLoc).getLocWithOffset(
-      getTokenLenght(LBracLoc, Context));
-  auto RightBorder = Manager->getExpansionLoc(RBracLoc);
-
-  return CharSourceRange::getTokenRange(LeftBorder.getLocWithOffset(-Indent),
-                                        RightBorder.getLocWithOffset(Indent));
+  return CharSourceRange::getTokenRange(LBracLoc.getLocWithOffset(-Indent),
+                                        RBracLoc.getLocWithOffset(Indent));
 }
 
 /// Swap the then and else branches
@@ -514,17 +628,20 @@ void IfElseReturnChecker::reverseStmt(const IfStmt *IfStmt,
   if (!CompoundIfStmt) {
     IfTokenRange = CharSourceRange::getTokenRange(ThenStmt->getSourceRange());
   } else {
-    auto WithBrackets = !CompoundElseStmt;
-    IfTokenRange =
-        WithBrackets
-            ? getCompoundStmtRange(CompoundIfStmt, Context, Manager)
-            : getCompoundStmtRange(CompoundIfStmt, Context, Manager, -1);
+    // With brackets
+    IfTokenRange = getCompoundStmtRange(CompoundIfStmt, Context, Manager);
+    // auto WithBrackets = !CompoundElseStmt;
+    // IfTokenRange = WithBrackets?
+    // getCompoundStmtRange(CompoundIfStmt, Context, Manager)
+    // : getCompoundStmtRange(CompoundIfStmt, Context, Manager, -1);
   }
 
   if (!CompoundElseStmt) {
+    ElseTokenRange = CharSourceRange::getTokenRange(ThenStmt->getSourceRange());
+
     auto ElseLenght = getTokenLenght(IfStmt->getElseLoc(), Context);
     auto ElseStartLocation = IfStmt->getElseLoc().getLocWithOffset(ElseLenght);
-    auto ElseEndLocation = Manager->getExpansionLoc(IfStmt->getEndLoc());
+    auto ElseEndLocation = IfStmt->getEndLoc();
 
     SourceLocation SemiLoc(clang::Lexer::findLocationAfterToken(
         ElseEndLocation, clang::tok::semi, *Manager, Context.getLangOpts(),
@@ -537,15 +654,25 @@ void IfElseReturnChecker::reverseStmt(const IfStmt *IfStmt,
     ElseTokenRange =
         CharSourceRange::getTokenRange({ElseStartLocation, SemiLoc});
   } else {
-    auto WithBrackets = !CompoundIfStmt;
-    ElseTokenRange =
-        WithBrackets
-            ? getCompoundStmtRange(CompoundElseStmt, Context, Manager)
-            : getCompoundStmtRange(CompoundElseStmt, Context, Manager, -1);
+    // With brackets
+    ElseTokenRange = getCompoundStmtRange(CompoundElseStmt, Context, Manager);
+    // auto WithBrackets = !CompoundIfStmt;
+    // ElseTokenRange = WithBrackets?
+    //             getCompoundStmtRange(CompoundElseStmt, Context, Manager)
+    //             : getCompoundStmtRange(CompoundElseStmt, Context, Manager,
+    //             -1);
   }
 
   auto ElseText = Rewrite->getRewrittenText(ElseTokenRange);
-  auto IfText = Rewrite->getRewrittenText(IfTokenRange);
+
+  std::string IfText;
+  if (!NeedShift) {
+    IfText = Rewrite->getRewrittenText(IfTokenRange);
+  } else {
+    IfText = Rewrite->getRewrittenText(
+        getCompoundStmtRange(CompoundIfStmt, Context, Manager, -1));
+  }
+
   if (NeedShift) {
     moveBlock(CompoundElseStmt, IfText, Indent);
     if (CompoundIfStmt) {
@@ -587,6 +714,9 @@ bool IfElseReturnChecker::addBlockToStmt(
   if (const auto *Block = getInterruptBlockForStmt(Cfg, Manager, Stmt, Context,
                                                    StmtToBlockMap)) {
     auto *InterruptionBlockStmt = getInterruptStatement(Block);
+    if (fromMacro(InterruptionBlockStmt)) {
+      return false;
+    }
     appendStmt(dyn_cast<CompoundStmt>(Stmt), InterruptionBlockStmt, Manager,
                Context);
     return true;

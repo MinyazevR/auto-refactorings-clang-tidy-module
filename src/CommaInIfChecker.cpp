@@ -11,16 +11,17 @@ void CommaInIfChecker::check(const MatchFinder::MatchResult &Result) {
   const auto *ConditionExpr =
       Result.Nodes.getNodeAs<clang::Expr>("conditionExpr");
   const auto *IfStmtNode = Result.Nodes.getNodeAs<clang::IfStmt>("ifStmt");
+  auto *const Manager = Result.SourceManager;
 
   // Checking that ConditionExpr is in If Condition
-  if (!IfStmtNode->getCond()->getSourceRange().fullyContains(
-          ConditionExpr->getSourceRange())) {
+  if (!Manager->getExpansionRange(IfStmtNode->getCond()->getSourceRange())
+           .getAsRange()
+           .fullyContains(ConditionExpr->getSourceRange())) {
     return;
   }
 
   auto ConditionExprBeginLocation = ConditionExpr->getBeginLoc();
   const auto ConditionExprEndLocation = ConditionExpr->getEndLoc();
-  auto *const Manager = Result.SourceManager;
   auto *const AstContext = Result.Context;
   clang::SourceLocation CurrentExpressionBeginLocation =
       ConditionExprBeginLocation;

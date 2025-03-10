@@ -33,3 +33,29 @@ index adde9136ff1d..0acc5ebcae93 100644
  } // namespace clang::tidy
  
  #endif
+diff --git a/clang-tools-extra/clang-tidy/readability/SimplifyBooleanExprCheck.cpp b/clang-tools-extra/clang-tidy/readability/SimplifyBooleanExprCheck.cpp
+index 499c88ef5d4e..e0fe95ddc7d3 100644
+--- a/clang-tools-extra/clang-tidy/readability/SimplifyBooleanExprCheck.cpp
++++ b/clang-tools-extra/clang-tidy/readability/SimplifyBooleanExprCheck.cpp
+@@ -521,8 +521,8 @@ public:
+ 
+   bool isExpectedBinaryOp(const Expr *E) {
+     const auto *BinaryOp = dyn_cast<BinaryOperator>(E);
+-    return !Check->canBeBypassed(E) && BinaryOp && BinaryOp->isLogicalOp() &&
+-           BinaryOp->getType()->isBooleanType();
++    return !Check->canBeBypassed(E) && BinaryOp && BinaryOp->isLogicalOp();
++           // && BinaryOp->getType()->isBooleanType();
+   }
+ 
+   template <typename Functor>
+@@ -534,8 +534,8 @@ public:
+     const auto *BO = dyn_cast<BinaryOperator>(E->IgnoreUnlessSpelledInSource());
+     if (!BO)
+       return false;
+-    if (!BO->getType()->isBooleanType())
+-      return false;
++   // if (!BO->getType()->isBooleanType())
++   //   return false;
+     switch (BO->getOpcode()) {
+     case BO_LT:
+     case BO_GT:
