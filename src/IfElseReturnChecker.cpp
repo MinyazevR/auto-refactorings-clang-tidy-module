@@ -188,12 +188,12 @@ static int getNodeWeight(const Stmt *Node, clang::SourceManager *Manager) {
          Manager->getSpellingLineNumber(Start);
 }
 
-static bool FromMacro(const Stmt *S) { return S->getBeginLoc().isMacroID(); }
+static bool fromMacro(const Stmt *S) { return S->getBeginLoc().isMacroID(); }
 
-static bool IsPreproccessorInIf(
+static bool isPreproccessorInIf(
     const IfElseReturnChecker::PreproccessorEndLocations &Locations,
     const clang::IfStmt *IfStmt, const SourceManager &Manager) {
-  if (FromMacro(IfStmt)) {
+  if (fromMacro(IfStmt)) {
     return true;
   }
   auto BeginIfLocation = IfStmt->getBeginLoc();
@@ -204,13 +204,13 @@ static bool IsPreproccessorInIf(
     return false;
   }
   auto SourceRanges = Iter->getSecond();
-  for (auto &&range : SourceRanges) {
-    if ((range.getBegin() > BeginIfLocation) &&
-        (range.getBegin() < EndIfLocation)) {
+  for (auto &&Range : SourceRanges) {
+    if ((Range.getBegin() > BeginIfLocation) &&
+        (Range.getBegin() < EndIfLocation)) {
       return true;
     }
-    if ((range.getEnd() > BeginIfLocation) &&
-        (range.getEnd() < EndIfLocation)) {
+    if ((Range.getEnd() > BeginIfLocation) &&
+        (Range.getEnd() < EndIfLocation)) {
       return true;
     }
   }
@@ -246,7 +246,7 @@ void IfElseReturnChecker::registerMatchers(MatchFinder *Finder) {
 
 static bool isExpectedBinaryOp(const Expr *E) {
   const auto *BinaryOp = dyn_cast<BinaryOperator>(E);
-  return !FromMacro(E) && BinaryOp && BinaryOp->isLogicalOp() &&
+  return !fromMacro(E) && BinaryOp && BinaryOp->isLogicalOp() &&
          (BinaryOp->getType()->isBooleanType() ||
           BinaryOp->getType()->isIntegerType());
 }
@@ -257,7 +257,7 @@ static bool checkBothSides(const BinaryOperator *BO, Functor Func) {
 }
 
 static bool isExpectedUnaryLNot(const Expr *E) {
-  return !FromMacro(E) && isa<UnaryOperator>(E) &&
+  return !fromMacro(E) && isa<UnaryOperator>(E) &&
          cast<UnaryOperator>(E)->getOpcode() == UO_LNot;
 }
 
@@ -271,11 +271,11 @@ void IfElseReturnChecker::runInternal(
       Manager->isMacroBodyExpansion(IfLocation) ||
       Manager->isInExternCSystemHeader(IfLocation) ||
       Manager->isInSystemHeader(IfLocation) ||
-      Manager->isInSystemMacro(IfLocation) || FromMacro(IfStmt)) {
+      Manager->isInSystemMacro(IfLocation) || fromMacro(IfStmt)) {
     return;
   }
 
-  if (IsPreproccessorInIf(PPConditionals, IfStmt, *Manager)) {
+  if (isPreproccessorInIf(PPConditionals, IfStmt, *Manager)) {
     return;
   }
 
@@ -284,7 +284,7 @@ void IfElseReturnChecker::runInternal(
   bool IsThenFirst = true;
   if (ReverseOnNotUO) {
     const auto *Condition = IfStmt->getCond();
-    if (auto UnaryCondition = dyn_cast<UnaryOperator>(Condition)) {
+    if (const auto *UnaryCondition = dyn_cast<UnaryOperator>(Condition)) {
       auto OpCode = UnaryCondition->getOpcode();
       if (OpCode == UO_LNot) {
         IsThenFirst = false;
@@ -407,7 +407,7 @@ bool IfElseReturnChecker::reverseCondition(const IfStmt *IfStmt,
   if (const auto *Then = dyn_cast<CompoundStmt>(IfStmt->getThen())) {
     auto ExpansionBeginLoc = Condition->getBeginLoc();
 
-    if (auto UnaryCondition = dyn_cast<UnaryOperator>(Condition)) {
+    if (const auto *UnaryCondition = dyn_cast<UnaryOperator>(Condition)) {
       auto OpCode = UnaryCondition->getOpcode();
       if (OpCode == UO_LNot) {
         auto ConditionSourceText = getSourceText(
@@ -422,7 +422,8 @@ bool IfElseReturnChecker::reverseCondition(const IfStmt *IfStmt,
           FixList.push_back(
               FixItHint::CreateRemoval(UnaryCondition->getEndLoc()));
           return true;
-        } else if (ConditionSourceText.starts_with("!")) {
+        }
+        if (ConditionSourceText.starts_with("!")) {
           Rewrite->RemoveText(UnaryCondition->getOperatorLoc());
           FixList.push_back(
               FixItHint::CreateRemoval(UnaryCondition->getOperatorLoc()));
@@ -713,7 +714,7 @@ bool IfElseReturnChecker::addBlockToStmt(
   if (const auto *Block = getInterruptBlockForStmt(Cfg, Manager, Stmt, Context,
                                                    StmtToBlockMap)) {
     auto *InterruptionBlockStmt = getInterruptStatement(Block);
-    if (FromMacro(InterruptionBlockStmt)) {
+    if (fromMacro(InterruptionBlockStmt)) {
       return false;
     }
     appendStmt(dyn_cast<CompoundStmt>(Stmt), InterruptionBlockStmt, Manager,
