@@ -138,6 +138,7 @@ void CommaInIfChecker::check(const MatchFinder::MatchResult &Result) {
 void CommaInIfChecker::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(parenExpr(has(binaryOperator(hasOperatorName(","))),
                                hasAncestor(ifStmt().bind("ifStmt")),
+                               unless(hasAncestor(binaryOperator())),
                                unless(hasAncestor(callExpr())))
                          .bind("conditionExpr"),
                      this);
