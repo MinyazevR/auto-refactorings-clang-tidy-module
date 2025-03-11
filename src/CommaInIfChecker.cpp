@@ -27,11 +27,25 @@ void CommaInIfChecker::check(const MatchFinder::MatchResult &Result) {
   }
 
   auto InitOffset = FirstBinaryOperator ? -1 : 0;
-  auto ConditionExprBeginLocation =
-      ConditionExpr->getBeginLoc().getLocWithOffset(InitOffset);
-  const auto ConditionExprEndLocation = ConditionExpr->getEndLoc();
+  auto ConditionExprBeginLocation = Manager->getExpansionLoc(
+      ConditionExpr->getBeginLoc().getLocWithOffset(InitOffset));
+  const auto ConditionExprEndLocation =
+      Manager->getExpansionLoc(ConditionExpr->getEndLoc());
 
   auto *const AstContext = Result.Context;
+
+  for (auto &&Parent : AstContext->getParents(*IfStmtNode)) {
+    if (const auto *ParentStmt = Parent.get<Stmt>()) {
+      if (const auto *ParentIfStmt = dyn_cast<IfStmt>(ParentStmt)) {
+        if (ParentIfStmt->hasElseStorage() &&
+            ParentIfStmt->getElse()->getID(*AstContext) ==
+                IfStmtNode->getID(*AstContext)) {
+          return;
+        }
+      }
+    }
+  }
+
   clang::SourceLocation CurrentExpressionBeginLocation =
       ConditionExprBeginLocation;
   clang::SourceLocation LastCommaLocation;
@@ -42,27 +56,38 @@ void CommaInIfChecker::check(const MatchFinder::MatchResult &Result) {
   auto IfStmtIndent = clang::Lexer::getIndentationForLine(
       Manager->getExpansionLoc(IfStmtNode->getBeginLoc()), *Manager);
 
+  int ParenCounter = 0;
   while (CurrentExpressionBeginLocation.isValid() &&
          CurrentExpressionBeginLocation < ConditionExprEndLocation) {
 
     auto NextTokenOptional = clang::Lexer::findNextToken(
-        CurrentExpressionBeginLocation, *Manager, AstContext->getLangOpts());
+        Manager->getExpansionLoc(CurrentExpressionBeginLocation), *Manager,
+        AstContext->getLangOpts());
 
     if (NextTokenOptional.has_value()) {
       auto NextToken = NextTokenOptional.value();
-      CurrentExpressionBeginLocation = NextToken.getLocation();
-      if (NextToken.getKind() != clang::tok::comma) {
+
+      if (NextToken.is(clang::tok::l_paren)) {
+        ParenCounter += 1;
+      }
+      if (NextToken.is(clang::tok::r_paren)) {
+        ParenCounter -= 1;
+      }
+
+      CurrentExpressionBeginLocation =
+          Manager->getExpansionLoc(NextToken.getLocation());
+      if (NextToken.getKind() != clang::tok::comma || ParenCounter != 0) {
         continue;
       }
     }
     if (CurrentExpressionBeginLocation.isValid() &&
         CurrentExpressionBeginLocation < ConditionExprEndLocation) {
-      auto CurrentSourceRange = clang::SourceRange(
-          {ConditionExprBeginLocation.getLocWithOffset(1),
-           CurrentExpressionBeginLocation.getLocWithOffset(-1)});
+      auto CurrentSourceRange =
+          clang::SourceRange({ConditionExprBeginLocation.getLocWithOffset(1),
+                              CurrentExpressionBeginLocation});
 
       auto CurrentExprSourceCode = clang::Lexer::getSourceText(
-          clang::CharSourceRange::getTokenRange(CurrentSourceRange), *Manager,
+          clang::CharSourceRange::getCharRange(CurrentSourceRange), *Manager,
           AstContext->getLangOpts());
 
       ConditionExprBeginLocation = CurrentExpressionBeginLocation;
@@ -71,7 +96,9 @@ void CommaInIfChecker::check(const MatchFinder::MatchResult &Result) {
                             ";\n");
       ConditionExprBeginLocation = CurrentExpressionBeginLocation;
       LastCommaLocation = CurrentExpressionBeginLocation;
+      continue;
     }
+    break;
   }
 
   if (LastCommaLocation.isInvalid() ||
@@ -95,7 +122,8 @@ void CommaInIfChecker::check(const MatchFinder::MatchResult &Result) {
 
   for (auto &&Expression : Expressions) {
     Diag << FixItHint::CreateInsertion(
-        IfStmtNode->getBeginLoc().getLocWithOffset(-1), Expression);
+        IfStmtNode->getBeginLoc().getLocWithOffset(-IfStmtIndent.size()),
+        Expression);
   }
   auto ConditionExprSourceRange = ConditionExpr->getSourceRange();
   auto ExprBeginLocation = ConditionExprSourceRange.getBegin();
@@ -108,13 +136,11 @@ void CommaInIfChecker::check(const MatchFinder::MatchResult &Result) {
 }
 
 void CommaInIfChecker::registerMatchers(MatchFinder *Finder) {
-  Finder->addMatcher(
-      parenExpr(hasDescendant(binaryOperator(hasOperatorName(","))),
-                hasAncestor(ifStmt().bind("ifStmt")),
-                unless(hasAncestor(callExpr())),
-                unless(hasAncestor(parenExpr())))
-          .bind("conditionExpr"),
-      this);
+  Finder->addMatcher(parenExpr(has(binaryOperator(hasOperatorName(","))),
+                               hasAncestor(ifStmt().bind("ifStmt")),
+                               unless(hasAncestor(callExpr())))
+                         .bind("conditionExpr"),
+                     this);
 
   Finder->addMatcher(binaryOperator(hasOperatorName(","),
                                     hasParent(ifStmt().bind("ifStmt")),

@@ -8,17 +8,17 @@ using namespace clang::tidy::autorefactorings;
 CallExpInIfChecker::CallExpInIfChecker(StringRef Name,
                                        ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context), UseAuto(Options.get("UseAuto", false)),
-      UseDeclRefExpr(Options.get("UseDeclRefExprOptions", true)),
+      UseDeclRefExpr(Options.get("UseDeclRefExpr", true)),
       UseAllCallExpr(Options.get("UseAllCallExpr", true)),
       FromSystemCHeader(Options.get("FromSystemCHeader", false)),
-      VariablePrefix(Options.get("VariablePrefix", "conditionVariable")),
+      VariablePrefix(Options.get("VariablePrefix", "var")),
       Pattern(Options.get("Filter", ".*")),
       IgnorePattern(Options.get("IgnoreFilter", "")),
-      ReturnTypePattern(Options.get("CallReturnTypeFilter", ".*")) {}
+      IgnoreReturnTypePattern(Options.get("IgnoreReturnTypePattern", "")) {}
 
 void CallExpInIfChecker::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "Filter", Pattern);
-  Options.store(Opts, "CallReturnTypeFilter", ReturnTypePattern);
+  Options.store(Opts, "IgnoreReturnTypePattern", IgnoreReturnTypePattern);
   Options.store(Opts, "VariablePrefix", VariablePrefix);
   Options.store(Opts, "UseAuto", UseAuto);
   Options.store(Opts, "UseDeclRefExpr", UseDeclRefExpr);
@@ -42,7 +42,10 @@ void CallExpInIfChecker::check(const MatchFinder::MatchResult &Result) {
   auto *Manager = Result.SourceManager;
 
   if (!FromSystemCHeader) {
-    const auto *CallExprDecl = CallExpr->getCalleeDecl();
+    const auto *CallExprDecl = CallExpr->getDirectCallee();
+    if (!CallExprDecl) {
+      return;
+    }
     auto CallExprLocation =
         Manager->getSpellingLoc(CallExprDecl->getLocation());
 
@@ -51,8 +54,6 @@ void CallExpInIfChecker::check(const MatchFinder::MatchResult &Result) {
     }
   }
 
-  auto ReturnType = CallExpr->getCallReturnType(*AstContext);
-
   // Checking that CallExpr is in If Condition
   const auto *IfStmtCondition = IfStmtNode->getCond();
   const auto IfStmtConditionSourceRange =
@@ -60,7 +61,6 @@ void CallExpInIfChecker::check(const MatchFinder::MatchResult &Result) {
   if (!IfStmtCondition || IfStmtConditionSourceRange.isInvalid()) {
     return;
   }
-
   const auto IfStmtConditionExpansionSourceRange =
       Manager->getExpansionRange(IfStmtConditionSourceRange);
 
@@ -69,7 +69,6 @@ void CallExpInIfChecker::check(const MatchFinder::MatchResult &Result) {
           CallExpr->getSourceRange())) {
     return;
   }
-
   // We don't want to check if with init storage
   if (IfStmtNode->hasInitStorage()) {
     return;
@@ -106,19 +105,21 @@ void CallExpInIfChecker::check(const MatchFinder::MatchResult &Result) {
   if (UseAuto) {
     ReturnTypeString = "auto";
   } else {
+
+    auto ReturnType = CallExpr->getCallReturnType(*AstContext);
+
     auto *Type = ReturnType.getTypePtrOrNull();
     if (!Type || ReturnType.isNull()) {
       return;
     }
-
     if (Type->isVoidType()) {
       return;
     }
-
     ReturnTypeString = ReturnType.getAsString();
     // Checking type of the returned value
-    static llvm::Regex ReturnTypeRegex(ReturnTypePattern);
-    if (!ReturnTypeRegex.match(ReturnTypeString)) {
+    static llvm::Regex ReturnTypeRegex(IgnoreReturnTypePattern);
+
+    if (ReturnTypeRegex.match(ReturnTypeString)) {
       return;
     }
   }

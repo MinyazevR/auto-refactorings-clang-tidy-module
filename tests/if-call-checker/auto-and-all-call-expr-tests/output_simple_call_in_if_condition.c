@@ -27,8 +27,8 @@ int main(int argc, char** argv) {
 	if(x != NULL)
 		printf("%d", 1);
 
-	auto conditionVariable1 = kek();
-	if (conditionVariable1) {
+	auto var1 = kek();
+	if (var1) {
 		printf("%d", 2);
 	}
 	
@@ -37,8 +37,8 @@ int main(int argc, char** argv) {
 		printf("%d", 3);
 	}
 	
-	auto conditionVariable3 = uhuhu();
-	if (conditionVariable3) {
+	auto var3 = uhuhu();
+	if (var3) {
 		printf("%d", 4);
 	}
 }

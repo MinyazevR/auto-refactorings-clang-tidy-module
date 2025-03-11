@@ -9,7 +9,7 @@ class CommaInIfChecker : public ClangTidyCheck {
 public:
   CommaInIfChecker(StringRef Name, ClangTidyContext *Context);
   bool isLanguageVersionSupported(const LangOptions &LangOpts) const override {
-    return LangOpts.C99;
+    return true;
   }
   //   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
