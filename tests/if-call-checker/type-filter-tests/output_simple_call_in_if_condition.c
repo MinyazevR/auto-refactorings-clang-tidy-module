@@ -22,13 +22,13 @@ int main(int argc, char** argv) {
 	if(lol(10))
 		printf("%d", 1);
 
-	int conditionVariable0 = kek();
-	if (conditionVariable0) {
+	int var0 = kek();
+	if (var0) {
 		printf("%d", 2);
 	}
 	
-	double * conditionVariable1 = ahaha();
-	if (conditionVariable1) {
+	double * var1 = ahaha();
+	if (var1) {
 		printf("%d", 2);
 	}
 	

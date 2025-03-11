@@ -19,16 +19,16 @@ double uhuhu() {
 
 
 int main(int argc, char** argv) {
-	int * conditionVariable0 = functionPrefix1(10);
-	if(conditionVariable0)
+	int * var0 = functionPrefix1(10);
+	if(var0)
 		printf("%d", 1);
 
 	if (kek()) {
 		printf("%d", 2);
 	}
 	
-	double * conditionVariable1 = functionPrefix2();
-	if (conditionVariable1) {
+	double * var1 = functionPrefix2();
+	if (var1) {
 		printf("%d", 2);
 	}
 	

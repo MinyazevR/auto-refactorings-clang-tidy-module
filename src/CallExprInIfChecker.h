@@ -24,7 +24,7 @@ private:
   std::string VariablePrefix;
   std::string Pattern;
   std::string IgnorePattern;
-  std::string ReturnTypePattern;
+  std::string IgnoreReturnTypePattern;
 };
 }; // namespace clang::tidy::autorefactorings
 

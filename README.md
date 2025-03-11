@@ -61,10 +61,10 @@ int main(int argc, char **argv) {
 | UseDeclRefExpr: boolean   | true | Make function calls that do not require declaring a new variable. |
 | UseAllCallExpr :boolean | true |  Make all function calls. |
 | FromSystemCHeader: boolean | false | Making function calls from system headers |
-| VariablePrefix: str | conditionVariable | A prefix for naming variables formed after taking out a function |
+| VariablePrefix: str | var | A prefix for naming variables formed after taking out a function |
 | Filter: str (POSIX ERE) | .*| A regular expression that allows you to filter by the name of the functions that need to be processed. |
 | IgnorePattern: str (POSIX ERE)| " " |A regular expression that allows you to filter functions by name that do not need to be processed. |
-| ReturnTypePattern: str (POSIX ERE)| .* | A regular expression that allows you to filter functions that need to be processed by the type of the returned value. |
+| IgnoreReturnTypePattern: str (POSIX ERE)| .* | A regular expression that allows you to filter functions that need to be processed by the type of the returned value. |
 
 An example for the following configuration
 ```
