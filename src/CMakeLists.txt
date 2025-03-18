@@ -12,6 +12,8 @@ endif()
 
 add_clang_library(clangTidyAutoRefactoringModule STATIC
   AutoRefactoringModule.cpp
+  AutoRefactoringModuleUtils.cpp
+  GoToReturnChecker.cpp
   IfElseReturnChecker.cpp
   CommaInIfChecker.cpp
   CallExprInIfChecker.cpp
