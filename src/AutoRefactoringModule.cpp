@@ -5,6 +5,7 @@
 #include "CommaInIfChecker.h"
 #include "GoToReturnChecker.h"
 #include "IfElseReturnChecker.h"
+#include "RenameGhidraMemberVariable.h"
 
 namespace clang::tidy {
 namespace autorefactorings {
@@ -17,6 +18,8 @@ public:
     CheckFactories.registerCheck<CommaInIfChecker>("if-comma-refactor");
     CheckFactories.registerCheck<CallExpInIfChecker>("if-call-refactor");
     CheckFactories.registerCheck<GoToReturnChecker>("goto-return-checker");
+    CheckFactories.registerCheck<RenameGhidraMemberVariable>(
+        "rename-ghidra-member-variable");
   }
 };
 

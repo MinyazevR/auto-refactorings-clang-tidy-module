@@ -13,6 +13,7 @@ endif()
 add_clang_library(clangTidyAutoRefactoringModule STATIC
   AutoRefactoringModule.cpp
   AutoRefactoringModuleUtils.cpp
+  RenameGhidraMemberVariable.cpp
   GoToReturnChecker.cpp
   IfElseReturnChecker.cpp
   CommaInIfChecker.cpp
