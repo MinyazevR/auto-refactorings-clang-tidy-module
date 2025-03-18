@@ -33,12 +33,8 @@ int main(int argc, char **argv) {
 	
 	int u;
 	int t;
-	x = lol();
-	y = 5;
-	u = 4;
-	t = 228;
-	if(((x + y) < 10)
-		&& ((u - t) < 0)) {
+	if((x = lol(), y = 5, (x + y) < 10)
+		&& (u = 4, t = 228, (u - t) < 0)) {
 		printf("%d", 1);
 	}
 }
