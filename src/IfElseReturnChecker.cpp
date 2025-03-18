@@ -1,4 +1,5 @@
 #include "IfElseReturnChecker.h"
+#include "AutoRefactoringModuleUtils.h"
 #include "clang/AST/ParentMap.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Analysis/Analyses/CFGReachabilityAnalysis.h"
@@ -71,111 +72,6 @@ public:
   }
 };
 } // namespace
-
-/// This function is designed to get the length of the token to handle offsets
-/// correctly.
-static int getTokenLenght(SourceLocation Loc,
-                          const clang::ASTContext &Context) {
-  return clang::Lexer::MeasureTokenLength(Loc, Context.getSourceManager(),
-                                          Context.getLangOpts());
-};
-
-/// Сheck that any statement that is included in the block belongs to a specific
-/// stmt.
-static bool isBlockInCurrentIfStmt(const clang::CFGBlock *Block,
-                                   const Stmt *CurrentStmt,
-                                   const SourceManager *Manager) {
-
-  for (auto &&BlockElement : Block->Elements) {
-    auto CfgStmtElement = BlockElement.getAs<CFGStmt>();
-    if (!CfgStmtElement) {
-      return false;
-    }
-
-    const auto *CfgStmtElementStmt = CfgStmtElement->getStmt();
-
-    if (CurrentStmt->getBeginLoc() >
-            Manager->getExpansionLoc(CfgStmtElementStmt->getBeginLoc()) ||
-        CurrentStmt->getEndLoc() <
-            Manager->getExpansionLoc(CfgStmtElementStmt->getEndLoc())) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-/// Checking that the block does not include any meaningful logic other than
-/// ReturnStmt
-static bool isOnlyReturnBlock(const clang::CFGBlock *Block,
-                              const clang::SourceManager *Manager) {
-  auto ReturnBlock = Block->back();
-
-  if (auto ReturnBlockCFGStmt = ReturnBlock.getAs<CFGStmt>()) {
-    if (const auto *ReturnBlockStmt =
-            dyn_cast<ReturnStmt>(ReturnBlockCFGStmt->getStmt())) {
-      return isBlockInCurrentIfStmt(Block, ReturnBlockStmt, Manager);
-    }
-    return false;
-  }
-  return false;
-}
-
-/// Get the source text using CharRange and SourceManager
-static llvm::StringRef getSourceText(const clang::SourceRange &Range,
-                                     const clang::SourceManager *Manager,
-                                     const clang::ASTContext *Context) {
-
-  const auto LangOptions = Context->getLangOpts();
-  const auto Start = Manager->getSpellingLoc(Range.getBegin());
-  const auto End = clang::Lexer::getLocForEndOfToken(
-      Manager->getSpellingLoc(Range.getEnd()), 0, *Manager, LangOptions);
-  return clang::Lexer::getSourceText(
-      clang::CharSourceRange::getTokenRange(clang::SourceRange{Start, End}),
-      *Manager, LangOptions);
-}
-
-/// Get Interrupt Stmt of block
-static const Stmt *getInterruptStatement(const clang::CFGBlock *Block) {
-  auto InterruptInstruction = Block->back();
-  if (auto InterruptBlockCFGStmt = InterruptInstruction.getAs<CFGStmt>()) {
-    auto *InterruptBlockASTStmt = InterruptBlockCFGStmt->getStmt();
-
-    if (auto *Answer = dyn_cast<ReturnStmt>(InterruptBlockASTStmt)) {
-      return Answer;
-    }
-
-    if (auto *Answer = dyn_cast<BreakStmt>(InterruptBlockASTStmt)) {
-      return Answer;
-    }
-
-    if (auto *Answer = dyn_cast<ContinueStmt>(InterruptBlockASTStmt)) {
-      return Answer;
-    }
-
-    if (auto *Answer = dyn_cast<CXXThrowExpr>(InterruptBlockASTStmt)) {
-      return Answer;
-    }
-  }
-  return nullptr;
-}
-
-/// Get the latest Stmt in scope if it is Compound Stmt
-static const Stmt *getLastStmt(const Stmt *CurrentStmt) {
-  if (auto *CmdCompound = dyn_cast<CompoundStmt>(CurrentStmt)) {
-    return CmdCompound->body_back();
-  }
-  return nullptr;
-}
-
-/// Returns true if it is an exit block for the entire CFG,
-/// a ReturnBlock, or a Block that does not return control.
-static bool isOnlyIterruptionBlock(const clang::CFGBlock *Block,
-                                   const clang::CFG &Cfg,
-                                   const clang::SourceManager *Manager) {
-  return Block->getBlockID() == Cfg.getExit().getBlockID() ||
-         isOnlyReturnBlock(Block, Manager) || Block->hasNoReturnElement();
-}
 
 /// It is used to calculate the weight of the Then or Else Compound Stmt of the
 /// main IfStmt,
@@ -264,7 +160,6 @@ static bool isExpectedUnaryLNot(const Expr *E) {
 void IfElseReturnChecker::runInternal(
     IfStmt *IfStmt, const ast_matchers::MatchFinder::MatchResult &Result,
     clang::CFG &Cfg) {
-
   auto IfLocation = IfStmt->getBeginLoc();
   auto *const Manager = Result.SourceManager;
   if (Manager->isMacroArgExpansion(IfLocation) ||
@@ -335,8 +230,9 @@ void IfElseReturnChecker::runInternal(
       auto ElseLBracLoc = CompoundElseStmt->getLBracLoc();
       auto ElseRBracLoc = CompoundElseStmt->getRBracLoc();
 
-      auto Left = Manager->getExpansionLoc(ElseLBracLoc)
-                      .getLocWithOffset(getTokenLenght(ElseLBracLoc, *Context));
+      auto Left =
+          Manager->getExpansionLoc(ElseLBracLoc)
+              .getLocWithOffset(Utils::getTokenLenght(ElseLBracLoc, *Context));
       auto Right = Manager->getExpansionLoc(ElseRBracLoc).getLocWithOffset(-1);
 
       auto ElseText = Rewrite->getRewrittenText(
@@ -345,7 +241,7 @@ void IfElseReturnChecker::runInternal(
     }
 
     if (auto *CompoundThenStmt = dyn_cast<CompoundStmt>(ThenStmt)) {
-      auto ElseLength = getTokenLenght(IfStmt->getElseLoc(), *Context);
+      auto ElseLength = Utils::getTokenLenght(IfStmt->getElseLoc(), *Context);
       clang::SourceRange Range(
           Manager->getExpansionLoc(
               CompoundThenStmt->getRBracLoc().getLocWithOffset(1)),
@@ -410,7 +306,7 @@ bool IfElseReturnChecker::reverseCondition(const IfStmt *IfStmt,
     if (const auto *UnaryCondition = dyn_cast<UnaryOperator>(Condition)) {
       auto OpCode = UnaryCondition->getOpcode();
       if (OpCode == UO_LNot) {
-        auto ConditionSourceText = getSourceText(
+        auto ConditionSourceText = Utils::getSourceText(
             {ExpansionBeginLoc, ExpansionBeginLoc.getLocWithOffset(2)}, Manager,
             Context);
         if (ConditionSourceText.starts_with("!(")) {
@@ -468,7 +364,7 @@ static const clang::CFGBlock *getInterruptBlockForStmt(
     if (!Block) {
       return nullptr;
     }
-    if (isOnlyIterruptionBlock(Block, Cfg, Manager)) {
+    if (Utils::isOnlyIterruptionBlock(Block, Cfg, Manager)) {
       Frontier.insert(Block);
     }
   }
@@ -498,9 +394,9 @@ static const clang::CFGBlock *getInterruptBlockForStmt(
     }
     for (auto BlockPred : Block->preds()) {
       auto IsBlockInCurrentStmt =
-          isBlockInCurrentIfStmt(BlockPred, CurrentStmt, Manager);
+          Utils::isBlockInCurrentStmt(BlockPred, CurrentStmt, Manager);
       auto CurrentBlockIsReachable = Analysis.isReachable(FstBlock, BlockPred);
-      if (!isOnlyIterruptionBlock(BlockPred, Cfg, Manager)) {
+      if (!Utils::isOnlyIterruptionBlock(BlockPred, Cfg, Manager)) {
         if (!IsBlockInCurrentStmt && CurrentBlockIsReachable) {
           return nullptr;
         }
@@ -529,7 +425,7 @@ void IfElseReturnChecker::appendStmt(const CompoundStmt *CmdStmt,
 
   // Get source text for new stmt
   auto StmtToAddSourceText =
-      getSourceText(StmtToAdd->getSourceRange(), Manager, Context);
+      Utils::getSourceText(StmtToAdd->getSourceRange(), Manager, Context);
 
   // Get range and location for lastStmt in CompoundStmt
   auto LastStmtRange = LastStmt->getSourceRange();
@@ -639,7 +535,7 @@ void IfElseReturnChecker::reverseStmt(const IfStmt *IfStmt,
   if (!CompoundElseStmt) {
     ElseTokenRange = CharSourceRange::getTokenRange(ThenStmt->getSourceRange());
 
-    auto ElseLenght = getTokenLenght(IfStmt->getElseLoc(), Context);
+    auto ElseLenght = Utils::getTokenLenght(IfStmt->getElseLoc(), Context);
     auto ElseStartLocation = IfStmt->getElseLoc().getLocWithOffset(ElseLenght);
     auto ElseEndLocation = IfStmt->getEndLoc();
 
@@ -676,7 +572,7 @@ void IfElseReturnChecker::reverseStmt(const IfStmt *IfStmt,
   if (NeedShift) {
     moveBlock(CompoundElseStmt, IfText, Indent);
     if (CompoundIfStmt) {
-      auto ElseLength = getTokenLenght(IfStmt->getElseLoc(), Context);
+      auto ElseLength = Utils::getTokenLenght(IfStmt->getElseLoc(), Context);
       clang::SourceRange Range(
           Manager->getExpansionLoc(
               CompoundIfStmt->getRBracLoc().getLocWithOffset(1)),
@@ -705,7 +601,7 @@ bool IfElseReturnChecker::addBlockToStmt(
     const Stmt *Stmt, const clang::CFG &Cfg,
     const clang::SourceManager *Manager,
     const clang::CFGStmtMap *StmtToBlockMap, const clang::ASTContext *Context) {
-  if (const auto *LastStmt = getLastStmt(Stmt)) {
+  if (const auto *LastStmt = Utils::getLastStmt(Stmt)) {
     if (isInterruptStmt(LastStmt)) {
       return true;
     }
@@ -713,7 +609,7 @@ bool IfElseReturnChecker::addBlockToStmt(
 
   if (const auto *Block = getInterruptBlockForStmt(Cfg, Manager, Stmt, Context,
                                                    StmtToBlockMap)) {
-    auto *InterruptionBlockStmt = getInterruptStatement(Block);
+    auto *InterruptionBlockStmt = Utils::getInterruptStatement(Block);
     if (fromMacro(InterruptionBlockStmt)) {
       return false;
     }

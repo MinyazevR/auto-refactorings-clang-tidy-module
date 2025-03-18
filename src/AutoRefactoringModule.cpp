@@ -3,6 +3,7 @@
 #include "../ClangTidyModuleRegistry.h"
 #include "CallExprInIfChecker.h"
 #include "CommaInIfChecker.h"
+#include "GoToReturnChecker.h"
 #include "IfElseReturnChecker.h"
 
 namespace clang::tidy {
@@ -15,6 +16,7 @@ public:
     CheckFactories.registerCheck<IfElseReturnChecker>("if-else-refactor");
     CheckFactories.registerCheck<CommaInIfChecker>("if-comma-refactor");
     CheckFactories.registerCheck<CallExpInIfChecker>("if-call-refactor");
+    CheckFactories.registerCheck<GoToReturnChecker>("goto-return-checker");
   }
 };
 
