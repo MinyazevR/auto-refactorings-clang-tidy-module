@@ -186,7 +186,12 @@ void CallExpInIfChecker::check(const MatchFinder::MatchResult &Result) {
 
 void CallExpInIfChecker::registerMatchers(MatchFinder *Finder) {
   auto IfStmtCallExprMatcher =
-      callExpr(hasAncestor(ifStmt().bind("ifStmt"))).bind("callExpr");
+      callExpr(
+          hasAncestor(ifStmt().bind("ifStmt")),
+          unless(hasAncestor(binaryOperator(unless(isComparisonOperator()),
+                                            unless(isAssignmentOperator())))))
+          .bind("callExpr");
+
   auto IfStmtCallExprDeclRefMatcher =
       expr(has(binaryOperator(isAssignmentOperator(),
                               hasRHS(IfStmtCallExprMatcher),

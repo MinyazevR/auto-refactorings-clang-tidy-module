@@ -4,8 +4,13 @@ int lol() {
 	return 0;
 }
 
+int kek(int u) {
+	return 0 + u;
+}
+
 int main(int argc, char** argv) {
-	if(lol() && lol()) {
+	int variable0 = kek(lol());
+	if(variable0) {
 		printf("%d", 1);
 	}
 }
