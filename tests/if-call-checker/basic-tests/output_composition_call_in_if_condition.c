@@ -9,9 +9,7 @@ int kek(int u) {
 }
 
 int main(int argc, char** argv) {
-	int variable0 = lol();
-	int variable1 = kek(lol());
-	if(variable0 && variable1) {
+	if(lol() && kek(lol())) {
 		printf("%d", 1);
 	}
 }
