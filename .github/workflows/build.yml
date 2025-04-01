@@ -78,7 +78,7 @@ jobs:
       run: ./tests/run_tests.sh "$CLANG_TIDY_BIN"
 
     - name: Lint
-      uses: cpp-linter/cpp-linter-action@v2.13.4
+      uses: cpp-linter/cpp-linter-action@v2.14.0
       id: linter
       with:
         style: 'file'
