@@ -11,17 +11,18 @@ TMP_TEST_DIR="$TESTS_DIR/tmp"
 mkdir -p "$TMP_TEST_DIR"
 
 cp "$TESTS_DIR/"*.c "$TMP_TEST_DIR"
+cp "$TESTS_DIR/"*.h "$TMP_TEST_DIR"
 
 for i in $(ls "$TMP_TEST_DIR/"*input*)
 do
   echo "Process file $i"
   
-  "$CLANG_TIDY_EXECUTABLE" --config-file="$CLANG_TIDY_CONFIG_DIR/.clang-tidy" --fix "$i"
+  "$CLANG_TIDY_EXECUTABLE" --config-file="$CLANG_TIDY_CONFIG_DIR/.clang-tidy" --fix -fix-errors "$i"
   OUTPUT_FILE="${i/input/output}"
   
   if [ -f "$CLANG_TIDY_CONFIG_DIR/.post-clang-tidy" ]; then
    echo "Proccess .post-clang-tidy"
-   "$CLANG_TIDY_EXECUTABLE" --config-file="$CLANG_TIDY_CONFIG_DIR/.post-clang-tidy" --fix "$i"
+   "$CLANG_TIDY_EXECUTABLE" --config-file="$CLANG_TIDY_CONFIG_DIR/.post-clang-tidy" --fix -fix-errors "$i"
   fi
   
   if cmp -s "$i" "$OUTPUT_FILE"; then
