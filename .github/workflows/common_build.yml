@@ -29,8 +29,14 @@ jobs:
       os: ubuntu-latest
       enable_asan: ON
 
-  build-linux-release:
+  build-linux-latest-release:
     uses: ./.github/workflows/build.yml
     with:
       os: ubuntu-latest
+      llvm_version: 19.1.7
+
+  build-linux-release:
+    uses: ./.github/workflows/build.yml
+    with:
+      os: ubuntu-22.04
       llvm_version: 19.1.7
